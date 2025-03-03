@@ -16,12 +16,6 @@ leechSocket.connect(ADDR)
 # send message to seeder
 def send(msg):
     message = msg.encode(FORMAT)
-    msg_length = len(message)
-    send_length = str(msg_length).encode(FORMAT)
-    
-    #Find length ?? not really sure how this works yet
-    send_length += b' ' * (HEADER - len(send_length))
-    leechSocket.send(send_length)
     
     #send message
     leechSocket.send(message)
@@ -29,8 +23,12 @@ def send(msg):
     #print response from server (seeder)
     print(leechSocket.recv(2048).decode(FORMAT))
     
+
     
-send("Hello")
+    
+input = input("Input something:\n")
+send(input)
+
 
 
 

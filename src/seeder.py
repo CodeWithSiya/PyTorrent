@@ -1,7 +1,6 @@
 # seeder receives message from leecher
 
 import socket 
-import threading #To use multiple threads
 import time
 
 # define constants
@@ -12,45 +11,37 @@ DISCONNECT_MESSAGE = '!exit'
 SERVER = socket.gethostname()
 ADDR = (SERVER, PORT)
 
+
+
 # create seeder socket and bind to address (TCP connection)
 seedSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 seedSocket.bind(ADDR)
 
-# method that the initial handshake with client to initiate TCP connection
-def handshake(conn, addr):
-    print(f"[NEW CONNECTION] {addr} connected.")
-    
-    connected = True
-    while connected: #wait for connection
-        
-        msg_length = conn.recv(HEADER).decode(FORMAT)
-        
-        if msg_length:
-            msg_length = int(msg_length)
-            msg = conn.recv(msg_length).decode(FORMAT)
-            
-            if msg == DISCONNECT_MESSAGE:
-                connected = False
-            
-            print(f"[{addr}] {msg}") 
-            conn.send("Msg received".encode(FORMAT))
-            
-    conn.close()
  
 #after handshake listen for messages from TCP client (leecher)   
 def start():
     seedSocket.listen(1)
     print(f"[LISTENING] Server is listening on {SERVER}")
     
+    #count number of active connections
+    activeCount = 0
+    
     while True: #Wait for msg
+        
+        #create new socket for sending messages
         conn, addr = seedSocket.accept()
+        activeCount += 1
+        print(f"Connected by {addr} | Total leechers: {activeCount}")
+    
         
-    # use thread to run handshake in the background
-        thread = threading.Thread(target=handshake, args=(conn, addr)) # create new thread for handle_clients
-        thread.start()
+        message = conn.recv(1024).decode(FORMAT)
         
-        # threading count - 1 because we want to exclude main thread
-        print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+        print(f"Client said '{message}'")
+        conn.send("Msg recieved :)".encode(FORMAT))
+         
+        conn.close()
+        
+        
         
 
 print("[STARTING] server is starting...")
