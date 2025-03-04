@@ -6,6 +6,7 @@ HEADER = 64 # the size of the message will be a minimum of 64 bytes
 PORT = 5050
 FORMAT = "utf-8"
 DISCONNECT_MESSAGE = '!exit'
+DOWNLOAD_MESSAGE = '!download'
 SERVER = socket.gethostname()
 ADDR = (SERVER, PORT)
 
@@ -20,10 +21,12 @@ def send_text(msg):
     #send message
     leechSocket.send(message)
     
-    #print response from server (seeder)
-    print(leechSocket.recv(2048).decode(FORMAT))
 
-def get_file(filename):
+def get_file():
+    
+    #recieve filename
+    filename = leechSocket.recv(HEADER).decode(FORMAT)
+    
     file = open(filename, "wb")
     
     try:
@@ -31,6 +34,7 @@ def get_file(filename):
             data = leechSocket.recv(4096) #recieve in chunks
             if not data:
                 break
+            #write recieved chunks in file
             file.write(data)
             
     finally:
@@ -40,10 +44,9 @@ def get_file(filename):
     leechSocket.close()
         
         
-    
-input = input("What would you like to do?\n")
-send_text(input)
-get_file("test_out.txt")
+input()
+send_text(DOWNLOAD_MESSAGE)
+get_file()
 
 
 
