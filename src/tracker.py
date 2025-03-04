@@ -1,5 +1,6 @@
-from socket import *
+from datetime import datetime
 from threading import *
+from socket import *
 import time 
 
 class Tracker:
@@ -15,7 +16,9 @@ class Tracker:
     :version: 17/03/2025
     """    
     
-    def __init__(self, host: str, port: int, peer_timeout: int = 100, peer_limit: int = 10) -> None:
+    # TODO: Implement to tell the difference between seeders and leechers in response.
+    
+    def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
         """
         Initialises the Tracker server with the given host, port, peer timeout, and peer limit.
         
@@ -53,8 +56,8 @@ class Tracker:
                 request_message = message.decode()
                 
                 # Create a new thread to process a new request from the peer.
-                thread = Thread(target=self.process_peer_requests, args=(request_message, self.tracker_socket, peer_address))
-                thread.start()
+                request_thread = Thread(target=self.process_peer_requests, args=(request_message, self.tracker_socket, peer_address))
+                request_thread.start()
             except Exception as e:
                 self.tracker_socket.sendto("Error receiving data: {e}")
                 
@@ -73,6 +76,8 @@ class Tracker:
             self.register_peer(peer_address)
         elif split_message[0] == "LIST_ACTIVE":
             self.list_active_peers(peer_address)
+        elif split_message[0] == "DISCONNECT":
+            self.remove_peer(peer_address)
         else:
             error_message = f"400 Unknown request from peer: {request_message}"
             self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -103,7 +108,42 @@ class Tracker:
             active_list = list(self.active_peers.keys())
             
         self.tracker_socket.sendto(str(active_list).encode(), peer_address)
-                                    
-if __name__ == '__main__':
+        
+    def remove_peer(self, peer_address: tuple):
+        """
+        Removes a peer from the active list when it disconnects.
+        """
+        with self.lock:
+            if peer_address in self.active_peers:
+                del self.active_peers[peer_address]
+                response_message = f"400 Peer successfully removed: {peer_address}"
+            elif peer_address not in self.active_peers:
+                response_message = f"403 Peer not found in active list: {peer_address}"
+            else:
+                response_message  = f"403 Unknown error"
+                
+        self.tracker_socket.sendto(response_message.encode(), peer_address)
+            
+    def remove_inactive_peers(self) -> None:
+        """
+        Periodically removes inactive peers based on timeout.
+        """
+        while True:
+            time.sleep(5)  # Remove inactive peers every 60 seconds.
+            with self.lock:
+                current_time = time.time()
+                for peer in list(self.active_peers.keys()):
+                    if current_time - self.active_peers[peer] > self.peer_timeout:
+                        del self.active_peers[peer]
+                        print("Clean-up performed at: " + str(datetime.now()))
+                                  
+if __name__ == '__main__':    
+    # Initialise the tracker.
     tracker = Tracker(gethostbyname(gethostname()), 55555)
+    
+    # Start the peer cleanup thread.
+    cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
+    cleanup_thread.start()
+    
+    # Start the tracker.
     tracker.start()
