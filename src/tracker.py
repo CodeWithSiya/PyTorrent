@@ -16,9 +16,12 @@ class Tracker:
     :version: 17/03/2025
     """    
     
-    # TODO: Implement to tell the difference between seeders and leechers in response.
-    # TODO: Implement some way to verify that a message has been sent correctly.
+    # TODO: Implement to tell the difference between seeders and leechers in response -> MAYBE REGISTER SEED OR LEECH.
+    # TODO: Implement some way to verify that a message has been sent correctly -> VERIFICATION & RELIABILITY BASICALLY.
     # TODO: Where should the files be stored? This is the most confusing part to me!
+    """
+    Apperently stored locally in
+    """
     # TODO: Fix commenting and respose messages (Should be of a proper format!)
     
     def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
@@ -148,7 +151,7 @@ class Tracker:
                         print("Clean-up performed at: " + str(datetime.now()))
     
     # TODO: ENSURE THAT ALL METHODS HAVE THIS TYPE OF DOCUMENTATION.                   
-    def keep_peer_alive(self, peer_address: socket):
+    def keep_peer_alive(self, peer_address: tuple):
         """
         Updates the last activity time of a peer to keep it active in the tracker.
         If the peer is found, its timestamp is refreshed; otherwise, an error is returned.
@@ -170,14 +173,14 @@ class Tracker:
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
     def handle_ping_request(self, peer_address: tuple) -> None:
-    """
-    Handles a PING request from a peer and responds with a PONG message.
-    - Ensures that the tracker is active before attempting to send any messages.
-    
-    :param peer_address: The address of the peer sending the PING request.
-    """
-    response_message = "200 PONG"
-    self.tracker_socket.sendto(response_message.encode(), peer_address)
+        """
+        Handles a PING request from a peer and responds with a PONG message.
+        - Ensures that the tracker is active before attempting to send any messages.
+        
+        :param peer_address: The address of the peer sending the PING request.
+        """
+        response_message = "200 PONG"
+        self.tracker_socket.sendto(response_message.encode(), peer_address)
 
                                        
 if __name__ == '__main__':    
