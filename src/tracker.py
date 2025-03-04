@@ -59,7 +59,8 @@ class Tracker:
                 request_thread = Thread(target=self.process_peer_requests, args=(request_message, self.tracker_socket, peer_address))
                 request_thread.start()
             except Exception as e:
-                self.tracker_socket.sendto("Error receiving data: {e}")
+                error_message = f"Error receiving data: {e}"
+                self.tracker_socket.sendto(error_message.encode(), peer_address)
                 
     def process_peer_requests(self, request_message: str, peer_socket: socket, peer_address: tuple) -> None:
         """
@@ -117,10 +118,8 @@ class Tracker:
             if peer_address in self.active_peers:
                 del self.active_peers[peer_address]
                 response_message = f"400 Peer successfully removed: {peer_address}"
-            elif peer_address not in self.active_peers:
-                response_message = f"403 Peer not found in active list: {peer_address}"
             else:
-                response_message  = f"403 Unknown error"
+                response_message = f"403 Peer not found in active list: {peer_address}"
                 
         self.tracker_socket.sendto(response_message.encode(), peer_address)
             
