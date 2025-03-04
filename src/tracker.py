@@ -17,6 +17,9 @@ class Tracker:
     """    
     
     # TODO: Implement to tell the difference between seeders and leechers in response.
+    # TODO: Implement some way to verify that a message has been sent correctly.
+    # TODO: Where should the files be stored? This is the most confusing part to me!
+    # TODO: Fix commenting and respose messages (Should be of a proper format!)
     
     def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
         """
@@ -51,7 +54,7 @@ class Tracker:
          
         while True:
             try:
-                # Read and decode the message from the UDP socket and get the peer's address (IP and port).
+                # Read and decode the message from the UDP socket and get the peer's address.
                 message, peer_address = self.tracker_socket.recvfrom(1024)
                 request_message = message.decode()
                 
@@ -79,6 +82,10 @@ class Tracker:
             self.list_active_peers(peer_address)
         elif split_message[0] == "DISCONNECT":
             self.remove_peer(peer_address)
+        elif split_message[0] == "KEEP_ALIVE":
+            self.keep_peer_alive(peer_address)
+        # elif split_message[0] == "PING":
+        #     self.some_method(peer_address)
         else:
             error_message = f"400 Unknown request from peer: {request_message}"
             self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -93,13 +100,13 @@ class Tracker:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
                 self.active_peers[peer_address] = time.time()
-                response_message = f"200 Peer registered: {peer_address} at {time.time()}"
+                response_message = f"200 Peer registered: {peer_address}"
             else:
                 response_message = "403 Peer limit reached, registration denied."
         
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                 
-    def list_active_peers(self, peer_address: tuple):
+    def list_active_peers(self, peer_address: tuple) -> None:
         """
         Sends a list of currently active peers to the requesting peer. 
         
@@ -110,11 +117,12 @@ class Tracker:
             
         self.tracker_socket.sendto(str(active_list).encode(), peer_address)
         
-    def remove_peer(self, peer_address: tuple):
+    def remove_peer(self, peer_address: tuple) -> None:
         """
         Removes a peer from the active list when it disconnects.
         """
         with self.lock:
+            # Only remove the peer from the network if found in active peers.
             if peer_address in self.active_peers:
                 del self.active_peers[peer_address]
                 response_message = f"400 Peer successfully removed: {peer_address}"
@@ -128,14 +136,37 @@ class Tracker:
         Periodically removes inactive peers based on timeout.
         """
         while True:
-            time.sleep(5)  # Remove inactive peers every 60 seconds.
+            time.sleep(5)  # Remove inactive peers every 5 seconds.
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):
                     if current_time - self.active_peers[peer] > self.peer_timeout:
+                        # TODO: Alert the user that their device is going to timeout before timing out!
                         del self.active_peers[peer]
                         print("Clean-up performed at: " + str(datetime.now()))
-                                  
+    
+    # TODO: ENSURE THAT ALL METHODS HAVE THIS TYPE OF DOCUMENTATION.                   
+    def keep_peer_alive(self, peer_address: socket):
+        """
+        Updates the last activity time of a peer to keep it active in the tracker.
+        If the peer is found, its timestamp is refreshed; otherwise, an error is returned.
+
+        :param peer_address: The address of the peer that sent the "KEEP_ALIVE" request.
+    
+        Sends a response:
+        - "400 Peer's last activity time updated" if the peer is active.
+        - "403 Peer not found" if the peer is not in the active list.
+        """
+        with self.lock:
+            # Update the peer's last activity time to avoid time out if found in the active list.
+            if peer_address in self.active_peers:
+                self.active_peers[peer_address] = time.time()
+                response_message = f"400 Peer's last activity time successfully updated: {peer_address}"
+            else:
+                response_message = f"403 Peer not found in active list: {peer_address}"
+                        
+        self.tracker_socket.sendto(response_message.encode(), peer_address)
+                                       
 if __name__ == '__main__':    
     # Initialise the tracker.
     tracker = Tracker(gethostbyname(gethostname()), 55555)
