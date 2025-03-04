@@ -52,11 +52,11 @@ class Tracker:
                 message, peer_address = self.tracker_socket.recvfrom(1024)
                 request_message = message.decode()
                 
-                # Create a new thread to process the request from the peer.
-                thread = Thread(target=self.process_peer_requests, args=(request_message, peer_address))
+                # Create a new thread to process a new request from the peer.
+                thread = Thread(target=self.process_peer_requests, args=(request_message, self.tracker_socket, peer_address))
                 thread.start()
             except Exception as e:
-                print(f"Error receiving data: {e}")
+                self.tracker_socket.sendto("Error receiving data: {e}")
                 
     def process_peer_requests(self, request_message: str, peer_socket: socket, peer_address: tuple) -> None:
         """
@@ -71,20 +71,38 @@ class Tracker:
         # Checking the request type and processing accordingly.
         if split_message[0] == "REGISTER":
             self.register_peer(peer_address)
+        elif split_message[0] == "LIST_ACTIVE":
+            self.list_active_peers(peer_address)
         else:
-            print(f"Unknown request from peer: {request_message}")
+            error_message = f"400 Unknown request from peer: {request_message}"
+            self.tracker_socket.sendto(error_message.encode(), peer_address)
             
-    def register_peer(self, peer_address: tuple):
+    def register_peer(self, peer_address: tuple) -> None:
         """
         Registers a new peer with the tracker if the peer limit is not reached.
+        
+        :param peer_address: The address of the peer that sent the request.
         """
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
                 self.active_peers[peer_address] = time.time()
-                print(f"Peer registered: {peer_address}")
+                response_message = f"200 Peer registered: {peer_address} at {time.time()}"
             else:
-                print("Peer limit reached, registration denied.")
+                response_message = "403 Peer limit reached, registration denied."
+        
+        self.tracker_socket.sendto(response_message.encode(), peer_address)
+                
+    def list_active_peers(self, peer_address: tuple):
+        """
+        Sends a list of currently active peers to the requesting peer. 
+        
+        :param peer_address: The address of the peer that sent the request.
+        """
+        with self.lock:
+            active_list = list(self.active_peers.keys())
+            
+        self.tracker_socket.sendto(str(active_list).encode(), peer_address)
                                     
 if __name__ == '__main__':
     tracker = Tracker(gethostbyname(gethostname()), 55555)
