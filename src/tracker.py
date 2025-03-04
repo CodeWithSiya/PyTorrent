@@ -84,8 +84,10 @@ class Tracker:
             self.remove_peer(peer_address)
         elif split_message[0] == "KEEP_ALIVE":
             self.keep_peer_alive(peer_address)
-        # elif split_message[0] == "PING":
+        # elif split_message[0] == "REQUEST_PEERS":
         #     self.some_method(peer_address)
+        elif split_message[0] == "PING":
+            self.handle_ping_request()
         else:
             error_message = f"400 Unknown request from peer: {request_message}"
             self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -166,6 +168,17 @@ class Tracker:
                 response_message = f"403 Peer not found in active list: {peer_address}"
                         
         self.tracker_socket.sendto(response_message.encode(), peer_address)
+        
+    def handle_ping_request(self, peer_address: tuple) -> None:
+    """
+    Handles a PING request from a peer and responds with a PONG message.
+    - Ensures that the tracker is active before attempting to send any messages.
+    
+    :param peer_address: The address of the peer sending the PING request.
+    """
+    response_message = "200 PONG"
+    self.tracker_socket.sendto(response_message.encode(), peer_address)
+
                                        
 if __name__ == '__main__':    
     # Initialise the tracker.
