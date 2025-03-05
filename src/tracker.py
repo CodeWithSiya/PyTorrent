@@ -19,9 +19,6 @@ class Tracker:
     # TODO: Implement to tell the difference between seeders and leechers in response -> MAYBE REGISTER SEED OR LEECH.
     # TODO: Implement some way to verify that a message has been sent correctly -> VERIFICATION & RELIABILITY BASICALLY.
     # TODO: Where should the files be stored? This is the most confusing part to me!
-    """
-    Apperently stored locally in
-    """
     # TODO: Fix commenting and respose messages (Should be of a proper format!)
     
     def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
