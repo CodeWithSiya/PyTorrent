@@ -16,6 +16,9 @@ class Tracker:
     :version: 17/03/2025
     """    
     
+    # TODO: Refactor code to minimize nested if statements.
+    # TODO: Specify that when registering a seeder, must provide files.
+    # TODO: Implement functionality to GET_PEERS.
     # TODO: Implement some way to verify that a message has been received correctly -> VERIFICATION & RELIABILITY BASICALLY.
     # TODO: Where should the files be stored? This is the most confusing part to me!
     # TODO: Fix commenting and respose messages (Should be of a proper format!)
@@ -87,11 +90,11 @@ class Tracker:
         if split_message[0] == "REGISTER":
             # Checking if the message sent has a valid format.
             if len(split_message) < 2:
-                error_message = "400 Invalid registration request. Usage: REGISTER <seeder>/<leecher>"
+                error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher>"
                 self.tracker_socket.sendto(error_message.encode(), peer_address)
             else:
                 peer_type = split_message[1]
-                files = []  # Think this out.
+                files = []  # Think this out -> Trying to add the given files to the list.
                 if peer_type not in ["seeder", "leecher"]:
                     error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
                     self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -105,6 +108,9 @@ class Tracker:
             self.keep_peer_alive(peer_address)
         elif split_message[0] == "PING":
             self.handle_ping_request(peer_address)
+        # TODO: Obtain a list of the available files in the network for the UI.
+        elif split_messahe[0] == "GET_FILES":
+            self.some_method
         else:
             error_message = f"400 Unknown request from peer: {request_message}"
             self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -161,6 +167,14 @@ class Tracker:
         with self.lock:
             # Only remove the peer from the network if found in active peers.
             if peer_address in self.active_peers:
+                # Remove the peer from the file repository for each file it had.
+                if self.active_peers[peer_address]['type'] == 'seeder':
+                    for file in self.active_peers[peer_address]['files']:
+                        if file in self.file_repository and peer_address in self.file_reposity[file]:
+                            self.file_repository[file].remove(peer_address)
+                            # If no more seeders, remove the file from the repository.
+                            if not self.file_repository[file]:
+                                del self.file_repository[file]
                 del self.active_peers[peer_address]
                 response_message = f"400 Peer successfully removed: {peer_address}"
             else:
