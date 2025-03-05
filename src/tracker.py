@@ -16,10 +16,16 @@ class Tracker:
     :version: 17/03/2025
     """    
     
-    # TODO: Implement to tell the difference between seeders and leechers in response -> MAYBE REGISTER SEED OR LEECH.
     # TODO: Implement some way to verify that a message has been sent correctly -> VERIFICATION & RELIABILITY BASICALLY.
     # TODO: Where should the files be stored? This is the most confusing part to me!
     # TODO: Fix commenting and respose messages (Should be of a proper format!)
+    # TODO: Implement some type of way to know which peers have which files.
+    """
+    Maybe implemnt some type of file registry in the class so that things can be accessed easily!
+    file_registry = {} -> {filename : [list of seeders]}
+    How can would I modify the response to allow peers to announce which files they have?
+    Scan through a specific directory upon registration, then add the files to the request message while registering.
+    """
     
     def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
         """
@@ -36,8 +42,9 @@ class Tracker:
         self.peer_timeout = peer_timeout
         self.peer_limit = peer_limit
          
-        # Dictionary storing active peers and their last activity time and lock for thread safety.
+        # Dictionary storing active peers and their last activity time, file repository and lock for thread safety.
         self.active_peers = {}
+        self.file_repository = {}
         self.lock = Lock()
         
         # Initialise the UDP tracker socket using given the host and port.
@@ -77,45 +84,57 @@ class Tracker:
             
         # Checking the request type and processing accordingly.
         if split_message[0] == "REGISTER":
-            self.register_peer(peer_address)
+            # Checking if the message sent has a valid format.
+            if len(split_message) < 2:
+                error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher>"
+                self.tracker_socket.sendto(error_message.encode(), peer_address)
+            else:
+                peer_type = split_message[1]
+                if peer_type not in ["seeder", "leecher"]:
+                    error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
+                    self.tracker_socket.sendto(error_message.encode(), peer_address)
+                else:
+                    self.register_peer(peer_address, peer_type)
         elif split_message[0] == "LIST_ACTIVE":
             self.list_active_peers(peer_address)
         elif split_message[0] == "DISCONNECT":
             self.remove_peer(peer_address)
         elif split_message[0] == "KEEP_ALIVE":
             self.keep_peer_alive(peer_address)
-        # elif split_message[0] == "REQUEST_PEERS":
-        #     self.some_method(peer_address)
         elif split_message[0] == "PING":
-            self.handle_ping_request()
+            self.handle_ping_request(peer_address)
         else:
             error_message = f"400 Unknown request from peer: {request_message}"
             self.tracker_socket.sendto(error_message.encode(), peer_address)
             
-    def register_peer(self, peer_address: tuple) -> None:
+    def register_peer(self, peer_address: tuple, peer_type: str) -> None:
         """
         Registers a new peer with the tracker if the peer limit is not reached.
         
         :param peer_address: The address of the peer that sent the request.
+        :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
         """
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
-                self.active_peers[peer_address] = time.time()
-                response_message = f"200 Peer registered: {peer_address}"
+                self.active_peers[peer_address] = {'last_activity': time.time(), 'type': peer_type}
+                response_message = f"200 Peer registered: {peer_address} as {peer_type}"
             else:
                 response_message = "403 Peer limit reached, registration denied."
-        
+                
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                 
     def list_active_peers(self, peer_address: tuple) -> None:
         """
-        Sends a list of currently active peers to the requesting peer. 
+        Sends a list of currently active peers (seeders and leechers) to the requesting peer.
         
         :param peer_address: The address of the peer that sent the request.
         """
         with self.lock:
-            active_list = list(self.active_peers.keys())
+            # Obtain the active seeders and leechers and list them out.
+            active_seeders = [peer for peer, info in self.active_peers.items() if info['type'] == 'seeder']
+            active_leechers = [peer for peer, info in self.active_peers.items() if info['type'] == 'leecher']
+            active_list = {'seeders': active_seeders, 'leechers': active_leechers}
             
         self.tracker_socket.sendto(str(active_list).encode(), peer_address)
         
@@ -142,7 +161,7 @@ class Tracker:
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):
-                    if current_time - self.active_peers[peer] > self.peer_timeout:
+                    if current_time - self.active_peers[peer]['last_activity'] > self.peer_timeout:
                         # TODO: Alert the user that their device is going to timeout before timing out!
                         del self.active_peers[peer]
                         print("Clean-up performed at: " + str(datetime.now()))
@@ -162,7 +181,7 @@ class Tracker:
         with self.lock:
             # Update the peer's last activity time to avoid time out if found in the active list.
             if peer_address in self.active_peers:
-                self.active_peers[peer_address] = time.time()
+                self.active_peers[peer_address]['last_activity'] = time.time()
                 response_message = f"400 Peer's last activity time successfully updated: {peer_address}"
             else:
                 response_message = f"403 Peer not found in active list: {peer_address}"
