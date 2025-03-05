@@ -16,11 +16,12 @@ class Tracker:
     :version: 17/03/2025
     """    
     
-    # TODO: Implement some way to verify that a message has been sent correctly -> VERIFICATION & RELIABILITY BASICALLY.
+    # TODO: Implement some way to verify that a message has been received correctly -> VERIFICATION & RELIABILITY BASICALLY.
     # TODO: Where should the files be stored? This is the most confusing part to me!
     # TODO: Fix commenting and respose messages (Should be of a proper format!)
     # TODO: Implement some type of way to know which peers have which files.
     """
+    TODO
     Maybe implemnt some type of file registry in the class so that things can be accessed easily!
     file_registry = {} -> {filename : [list of seeders]}
     How can would I modify the response to allow peers to announce which files they have?
@@ -86,15 +87,16 @@ class Tracker:
         if split_message[0] == "REGISTER":
             # Checking if the message sent has a valid format.
             if len(split_message) < 2:
-                error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher>"
+                error_message = "400 Invalid registration request. Usage: REGISTER <seeder>/<leecher>"
                 self.tracker_socket.sendto(error_message.encode(), peer_address)
             else:
                 peer_type = split_message[1]
+                files = []  # Think this out.
                 if peer_type not in ["seeder", "leecher"]:
                     error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
                     self.tracker_socket.sendto(error_message.encode(), peer_address)
                 else:
-                    self.register_peer(peer_address, peer_type)
+                    self.register_peer(peer_address, peer_type, files)
         elif split_message[0] == "LIST_ACTIVE":
             self.list_active_peers(peer_address)
         elif split_message[0] == "DISCONNECT":
@@ -107,18 +109,32 @@ class Tracker:
             error_message = f"400 Unknown request from peer: {request_message}"
             self.tracker_socket.sendto(error_message.encode(), peer_address)
             
-    def register_peer(self, peer_address: tuple, peer_type: str) -> None:
+    def register_peer(self, peer_address: tuple, peer_type: str, files: list) -> None:
         """
         Registers a new peer with the tracker if the peer limit is not reached.
         
         :param peer_address: The address of the peer that sent the request.
         :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
+        :param files: A list of files the peer has (if it's a seeder) -> Will be empty when it has no files or is a seeder.
         """
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
-                self.active_peers[peer_address] = {'last_activity': time.time(), 'type': peer_type}
-                response_message = f"200 Peer registered: {peer_address} as {peer_type}"
+                self.active_peers[peer_address] = {
+                    'last_activity': time.time(), 
+                    'type': peer_type,
+                    'files': files
+                }
+                
+                # If the peer is a seeder, update the file_repository.
+                if peer_type == 'seeder':
+                    for files in files:
+                        if file not in self.file_repository:
+                            self.file_repository[file] = []
+                        self.file_repository[file].append(peer_address)
+                    response_message = f"200 Peer registered: {peer_address} as {peer_type} with files: {files}"
+                else:
+                    response_message = f"200 Peer registered: {peer_address} as {peer_type}"
             else:
                 response_message = "403 Peer limit reached, registration denied."
                 
@@ -197,7 +213,6 @@ class Tracker:
         """
         response_message = "200 PONG"
         self.tracker_socket.sendto(response_message.encode(), peer_address)
-
                                        
 if __name__ == '__main__':    
     # Initialise the tracker.
