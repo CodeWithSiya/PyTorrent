@@ -15,17 +15,7 @@ class Tracker:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """    
-    
-    # TODO: Refactor code to minimize nested if statements.
-    # TODO: Specify that when registering a seeder, must provide files.
-    # TODO: Implement functionality to GET_PEERS.
-    # TODO: Implement some way to verify that a message has been received correctly -> VERIFICATION & RELIABILITY BASICALLY.
-    # TODO: Where should the files be stored? This is the most confusing part to me!
-    # TODO: Fix commenting and respose messages (Should be of a proper format!)
-    # TODO: Implement some type of way to know which peers have which files.
-    # TODO: Implement some fixed length hashing for verification
-    # TODO: Scan through a specific directory upon registration, then add the files to the request message while registering.
-    
+        
     def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
         """
         Initialises the Tracker server with the given host, port, peer timeout, and peer limit.
@@ -87,51 +77,63 @@ class Tracker:
             error_message = f"400 Empty request from peer: {request_message}"
             self.tracker_socket.sendto(error_message.encode(), peer_address)
             return
-        
-        # Extracting the request type from the received message.
-        request_type = split_request[0]
-            
+                    
         # Checking the request type and processing accordingly.
+        request_type = split_request[0]
         if request_type == "REGISTER":
-            # Checking if the registration request has a valid format.
-            if len(split_request) < 2:
-                error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher> [file1, file2, ...]"
-                self.tracker_socket.sendto(error_message.encode(), peer_address)
-                return       
-            # Extracting the peer type from the registration request.
-            peer_type = split_request[1]
-            if peer_type not in ["seeder", "leecher"]:
-                error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
-                self.tracker_socket.sendto(error_message.encode(), peer_address)
-                return
-            # Extract the files from the request if the requesting peer is a seeder.
-            files = split_request[2].split(',') if peer_type == "seeder" and len(split_request) > 2 else []
-            self.register_peer(peer_address, peer_type, files)
-            return                   
-        if request_type == "LIST_ACTIVE":
+            self.handle_register_requests(split_request, peer_address)
+        elif request_type == "LIST_ACTIVE":
             self.list_active_peers(peer_address)
-            return
-        if request_type == "LIST_FILES":
+        elif request_type == "LIST_FILES":
             self.list_available_files(peer_address)
-            return
-        if request_type == "DISCONNECT":
+        elif request_type == "DISCONNECT":
             self.remove_peer(peer_address)
-            return
-        if request_type == "KEEP_ALIVE":
+        elif request_type == "KEEP_ALIVE":
             self.keep_peer_alive(peer_address)
-            return
-        if request_type == "PING":
+        elif request_type == "PING":
             self.handle_ping_request(peer_address)
-            return
-        if request_type == "GET_PEERS":
-            if len(split_request) < 2:
+        elif request_type == "GET_PEERS":
+            self.handle_get_peers_request(split_request, peer_address)
+        else:
+            error_message = f"400 Unknown request from peer: {request_message}"
+            self.tracker_socket.sendto(error_message.encode(), peer_address)
+        
+    def handle_register_requests(self, split_request: list, peer_address: tuple) -> None:
+        """
+        Handles peer registration requests.
+        
+        :param split_request: The split request message sent by the peer.
+        :param peer_address: The address of the peer that sent the request.
+        """
+        # Checking if the registration request has a valid format.
+        if len(split_request) < 2:
+            error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher> [file1, file2, ...]"
+            return self.tracker_socket.sendto(error_message.encode(), peer_address)
+             
+        # Extracting the peer type from the registration request.
+        peer_type = split_request[1]
+        if peer_type not in ["seeder", "leecher"]:
+            error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
+            return self.tracker_socket.sendto(error_message.encode(), peer_address)
+            
+        # Extract the files from the request if the requesting peer is a seeder.
+        files = split_request[2].split(',') if peer_type == "seeder" and len(split_request) > 2 else []
+        self.register_peer(peer_address, peer_type, files) 
+        
+    def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
+        """
+        Handles get peers requests.
+        
+        :param split_request: The split request message sent by the peer.
+        :param peer_address: The address of the peer that sent the request.
+        """
+        # Checking if the get peers request has a valid format.
+        if len(split_request) < 2:
                 error_message = "400 Invalid request. Usage: GET_PEERS <filename>"
-                self.tracker_socket.sendto(error_message.encode(), peer_address)
-            else:
-                filename = split_request[1]
-                self.get_peers_for_file(filename, peer_address)
-        error_message = f"400 Unknown request from peer: {request_message}"
-        self.tracker_socket.sendto(error_message.encode(), peer_address)
+                return self.tracker_socket.sendto(error_message.encode(), peer_address)
+       
+        filename = split_request[1]
+        self.get_peers_for_file(filename, peer_address)    
             
     def register_peer(self, peer_address: tuple, peer_type: str, files: list) -> None:
         """
