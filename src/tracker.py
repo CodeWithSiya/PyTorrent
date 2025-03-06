@@ -223,6 +223,13 @@ class Tracker:
                 for peer in list(self.active_peers.keys()):
                     if current_time - self.active_peers[peer]['last_activity'] > self.peer_timeout:
                         # TODO: Alert the user that their device is going to timeout before timing out!
+                        if self.active_peers[peer]['type'] == 'seeder':
+                            for file in self.active_peers[peer]['files']:
+                                if file in self.file_repository and peer in self.file_repository[file]:
+                                    self.file_repository[file].remove(peer)
+                                    # If no more seeders, remove the file from the repository.
+                                    if not self.file_repository[file]:
+                                        del self.file_repository[file]
                         del self.active_peers[peer]
                         print("Clean-up performed at: " + str(datetime.now()))
     
