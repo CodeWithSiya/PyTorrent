@@ -124,11 +124,11 @@ class Tracker:
             self.handle_ping_request(peer_address)
             return
         if request_type == "GET_PEERS":
-            if len(split_message) < 2:
+            if len(split_request) < 2:
                 error_message = "400 Invalid request. Usage: GET_PEERS <filename>"
                 self.tracker_socket.sendto(error_message.encode(), peer_address)
             else:
-                filename = split_message[1]
+                filename = split_request[1]
                 self.get_peers_for_file(filename, peer_address)
         error_message = f"400 Unknown request from peer: {request_message}"
         self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -211,7 +211,6 @@ class Tracker:
                 
         self.tracker_socket.sendto(response_message.encode(), peer_address)
             
-    # TODO: FIX!
     def remove_inactive_peers(self) -> None:
         """
         Periodically removes inactive peers based on timeout.
@@ -232,8 +231,26 @@ class Tracker:
                                         del self.file_repository[file]
                         del self.active_peers[peer]
                         print("Clean-up performed at: " + str(datetime.now()))
-    
-    # TODO: ENSURE THAT ALL METHODS HAVE THIS TYPE OF DOCUMENTATION.                   
+                        
+    def get_peers_for_file(self, filename: str, peer_address: tuple) -> None:
+        """
+        Retrieves a list of peers (seeders) that have the requested file and sends it to the requesting peer.
+        
+        :param filename: The name of the file being requested.
+        :param peer_address: The address of the peer that sent the request.
+        """
+        with self.lock:
+            # Check if the file exists in the file_repository.
+            if filename in self.file_repository:
+                # Get the list of seeders for the file.
+                seeders = self.file_repository[filename]
+                response_message = f"200 Peers with {filename}: {seeders}"
+            else:
+                response_message  = f"404 File not found: {filename}"
+                
+        # Send the response to the requesting peer.       
+        self.tracker_socket.sendto(response_message.encode(), peer_address)
+                     
     def keep_peer_alive(self, peer_address: tuple):
         """
         Updates the last activity time of a peer to keep it active in the tracker.
