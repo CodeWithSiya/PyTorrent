@@ -23,13 +23,8 @@ class Tracker:
     # TODO: Where should the files be stored? This is the most confusing part to me!
     # TODO: Fix commenting and respose messages (Should be of a proper format!)
     # TODO: Implement some type of way to know which peers have which files.
-    """
-    TODO
-    Maybe implemnt some type of file registry in the class so that things can be accessed easily!
-    file_registry = {} -> {filename : [list of seeders]}
-    How can would I modify the response to allow peers to announce which files they have?
-    Scan through a specific directory upon registration, then add the files to the request message while registering.
-    """
+    # TODO: Implement some fixed length hashing for verification
+    # TODO: Scan through a specific directory upon registration, then add the files to the request message while registering.
     
     def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
         """
@@ -69,7 +64,7 @@ class Tracker:
                 message, peer_address = self.tracker_socket.recvfrom(1024)
                 request_message = message.decode()
                 
-                # Create a new thread to process a new request from the peer.
+                # Create a new thread to process each new peer request.
                 request_thread = Thread(target=self.process_peer_requests, args=(request_message, self.tracker_socket, peer_address))
                 request_thread.start()
             except Exception as e:
@@ -81,39 +76,62 @@ class Tracker:
         Processes incoming peer requests based on the request message string.
         
         :param request_message: The message sent by the peer.
+        :param peer_socket: The socket of the peer that sent the request.
         :param peer_address: The address of the peer that sent the request.
         """
         # Split the incoming request into its different sections.
-        split_message = request_message.split()
+        split_request = request_message.split()
+        
+        # Ensure that the request is not empty.
+        if not split_request:
+            error_message = f"400 Empty request from peer: {request_message}"
+            self.tracker_socket.sendto(error_message.encode(), peer_address)
+            return
+        
+        # Extracting the request type from the received message.
+        request_type = split_request[0]
             
         # Checking the request type and processing accordingly.
-        if split_message[0] == "REGISTER":
-            # Checking if the message sent has a valid format.
+        if request_type == "REGISTER":
+            # Checking if the registration request has a valid format.
+            if len(split_request) < 2:
+                error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher> [file1, file2, ...]"
+                self.tracker_socket.sendto(error_message.encode(), peer_address)
+                return       
+            # Extracting the peer type from the registration request.
+            peer_type = split_request[1]
+            if peer_type not in ["seeder", "leecher"]:
+                error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
+                self.tracker_socket.sendto(error_message.encode(), peer_address)
+                return
+            # Extract the files from the request if the requesting peer is a seeder.
+            files = split_request[2].split(',') if peer_type == "seeder" and len(split_request) > 2 else []
+            self.register_peer(peer_address, peer_type, files)
+            return                   
+        if request_type == "LIST_ACTIVE":
+            self.list_active_peers(peer_address)
+            return
+        if request_type == "LIST_FILES":
+            self.list_available_files(peer_address)
+            return
+        if request_type == "DISCONNECT":
+            self.remove_peer(peer_address)
+            return
+        if request_type == "KEEP_ALIVE":
+            self.keep_peer_alive(peer_address)
+            return
+        if request_type == "PING":
+            self.handle_ping_request(peer_address)
+            return
+        if request_type == "GET_PEERS":
             if len(split_message) < 2:
-                error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher>"
+                error_message = "400 Invalid request. Usage: GET_PEERS <filename>"
                 self.tracker_socket.sendto(error_message.encode(), peer_address)
             else:
-                peer_type = split_message[1]
-                files = []  # Think this out -> Trying to add the given files to the list.
-                if peer_type not in ["seeder", "leecher"]:
-                    error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
-                    self.tracker_socket.sendto(error_message.encode(), peer_address)
-                else:
-                    self.register_peer(peer_address, peer_type, files)
-        elif split_message[0] == "LIST_ACTIVE":
-            self.list_active_peers(peer_address)
-        elif split_message[0] == "DISCONNECT":
-            self.remove_peer(peer_address)
-        elif split_message[0] == "KEEP_ALIVE":
-            self.keep_peer_alive(peer_address)
-        elif split_message[0] == "PING":
-            self.handle_ping_request(peer_address)
-        # TODO: Obtain a list of the available files in the network for the UI.
-        elif split_messahe[0] == "GET_FILES":
-            self.some_method
-        else:
-            error_message = f"400 Unknown request from peer: {request_message}"
-            self.tracker_socket.sendto(error_message.encode(), peer_address)
+                filename = split_message[1]
+                self.get_peers_for_file(filename, peer_address)
+        error_message = f"400 Unknown request from peer: {request_message}"
+        self.tracker_socket.sendto(error_message.encode(), peer_address)
             
     def register_peer(self, peer_address: tuple, peer_type: str, files: list) -> None:
         """
@@ -121,7 +139,7 @@ class Tracker:
         
         :param peer_address: The address of the peer that sent the request.
         :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
-        :param files: A list of files the peer has (if it's a seeder) -> Will be empty when it has no files or is a seeder.
+        :param files: A list of files the peer has (if it's a seeder).
         """
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
@@ -129,12 +147,11 @@ class Tracker:
                 self.active_peers[peer_address] = {
                     'last_activity': time.time(), 
                     'type': peer_type,
-                    'files': files
+                    'files': files if peer_type == "seeder" else []
                 }
-                
                 # If the peer is a seeder, update the file_repository.
-                if peer_type == 'seeder':
-                    for files in files:
+                if peer_type == 'seeder' and files:
+                    for file in files:
                         if file not in self.file_repository:
                             self.file_repository[file] = []
                         self.file_repository[file].append(peer_address)
@@ -160,6 +177,18 @@ class Tracker:
             
         self.tracker_socket.sendto(str(active_list).encode(), peer_address)
         
+    def list_available_files(self, peer_address: tuple) -> None:
+        """
+        Obtains a list of the files available in the tracker file repository.
+        
+        :param peer_address: The address of the peer that sent the request.
+        """
+        with self.lock:
+            # Obtain a list of the files available in the tracker file repository.
+            available_files = list(self.file_repository.keys())
+            
+        self.tracker_socket.sendto(str(available_files).encode(), peer_address)
+        
     def remove_peer(self, peer_address: tuple) -> None:
         """
         Removes a peer from the active list when it disconnects.
@@ -170,7 +199,7 @@ class Tracker:
                 # Remove the peer from the file repository for each file it had.
                 if self.active_peers[peer_address]['type'] == 'seeder':
                     for file in self.active_peers[peer_address]['files']:
-                        if file in self.file_repository and peer_address in self.file_reposity[file]:
+                        if file in self.file_repository and peer_address in self.file_repository[file]:
                             self.file_repository[file].remove(peer_address)
                             # If no more seeders, remove the file from the repository.
                             if not self.file_repository[file]:
@@ -182,12 +211,13 @@ class Tracker:
                 
         self.tracker_socket.sendto(response_message.encode(), peer_address)
             
+    # TODO: FIX!
     def remove_inactive_peers(self) -> None:
         """
         Periodically removes inactive peers based on timeout.
         """
         while True:
-            time.sleep(5)  # Remove inactive peers every 5 seconds.
+            time.sleep(30)  # Remove inactive peers every 5 seconds.
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):
