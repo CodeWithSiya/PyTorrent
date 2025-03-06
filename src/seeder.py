@@ -6,10 +6,15 @@ import threading
 class Seeder:
         
     def __init__(self, peer_id, ip_address, port, file_path):
+        
+        
         self.peer_id = peer_id
         self.ip_address = ip_address
         self.port = port
         self.file_path = file_path
+        
+        self.addr = (self.ip_address, self.port)
+        self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
         
     def split_into_chuncks():
@@ -24,47 +29,46 @@ class Seeder:
         """
         pass
     
-    def send_chuncks():
-        """
-        Serve file chuncks to the leecher
-        """
-        pass
     
     
+    def connect_with_leecher(self):
+        """
+        Establish a TCP connection with a leecher
+        """
+        self.tcp_socket.bind(self.addr)
+        
+         #listen for new connections
+        self.tcp_socket.listen(1)
+        print(f"[LISTENING] Server is listening on {self.ip_address}")
         
         
-        
+        while True: #Wait for msg
+            
+            #create new socket for sending messages
+            conn, addr = self.tcp_socket.accept()
+            
+            #start a thread to send a file
+            thread = threading.Thread(target=send_file, args=(self.file_path, conn))
+            thread.start()
 
+            print(f"Connected by {addr} | Total leechers: {threading.active_count() - 1}")
 
-        
-
-
-    # define constants
-    HEADER = 64 # the size of the message will be a minimum of 64 bytes
-    PORT = 5050
-    FORMAT = "utf-8"
-    DISCONNECT_MESSAGE = '!exit'
-    DOWNLOAD_MESSAGE = '!download'
-    SERVER = socket.gethostname()
-    ADDR = (SERVER, PORT)
-    filename = "65.png"
-
-
-    #send a file to the leecher
+    
     def send_file(filename, conn):
-
-        
+        """
+        Send a file to the leecher (temporary)
+        """
         wait = True
         while wait: #wait for signal to start sending
             
-            #get signal
-            msg = conn.recv(HEADER).decode(FORMAT)
+            #get signal to start sending
+            msg = conn.recv(4096).decode()
             
             if msg == DOWNLOAD_MESSAGE:
                 wait = False
                 
         #send the filename of file being sent
-        conn.send(filename.encode(FORMAT))
+        conn.send(filename.encode())
             
         
         #open file in byte mode
@@ -86,39 +90,14 @@ class Seeder:
             
             #after file is sent close connection
             conn.close()
-            
-            
         
-
-
-    # create seeder socket and bind to address (TCP connection)
-    seedSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    seedSocket.bind(ADDR)
-
+        
     
-    #listen for messages from TCP client (leecher)   
-    def start():
-        #listen for new connections
-        seedSocket.listen(1)
-        print(f"[LISTENING] Server is listening on {SERVER}")
-        
-        
-        while True: #Wait for msg
-            
-            #create new socket for sending messages
-            conn, addr = seedSocket.accept()
-            
-            #start a thread to send a file
-            thread = threading.Thread(target=send_file, args=(filename, conn))
-            thread.start()
+    def send_chuncks():
+        """
+        Serve file chuncks to the leecher
+        """
+        pass
 
-            print(f"Connected by {addr} | Total leechers: {threading.active_count() - 1}")
-                
-            
-            
-            
-
-    print("[STARTING] server is starting...")
-    start()
     
         
