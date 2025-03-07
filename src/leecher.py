@@ -86,13 +86,29 @@ class Leecher:
         try:
             # Send a request message to the tracker.
             request_message = f"GET_PEERS {filename}"
+            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
             response_message, peer_address = udp_socket.recvfrom(1024)
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
-            print(f"Error querying the tracker for available peers: {e}")
-              
+            print(f"Error querying the tracker for available peers: {e}")\
+    
+    def notify_tracker_alive(self) -> None:
+        """
+        Notifies the tracker that the leecher is still alive.
+        """
+        try:
+            # Send a request message to the tracker.
+            request_message = f"KEEP_ALIVE"
+            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+        
+            # Receive a response message from the tracker.
+            response_message, peer_address = udp_socket.recvfrom(1024)
+            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+        except Exception as e:
+            print(f"Error notifying the tracker that this peer is alive: {e}")
+                        
     # def connect_with_seeder(self):
     #     """
     #     Establish a TCP connection with a seeder
