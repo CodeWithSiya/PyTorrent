@@ -14,15 +14,17 @@ class Tracker:
 
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
-    """    
+    """ 
+    
+    #TODO: Implement a simple checksum for the request messages.   
         
-    def __init__(self, host: str, port: int, peer_timeout: int = 5, peer_limit: int = 10) -> None:
+    def __init__(self, host: str, port: int, peer_timeout: int = 30, peer_limit: int = 10) -> None:
         """
         Initialises the Tracker server with the given host, port, peer timeout, and peer limit.
         
         :param host: The host address of the tracker.
         :param port: The port on which the tracker listens for incoming connections.
-        :param peer_timeout: Time (in seconds) to wait before considering a peer as inactive.
+        :param peer_timeout: Time (in seconds) to wait before considering a peer (Seeder or Leecher) as inactive.
         :param peer_limit: Maximum number of peers that can be registered with the tracker.
         """
         # Configuring the tracker details.
@@ -129,8 +131,8 @@ class Tracker:
         """
         # Checking if the get peers request has a valid format.
         if len(split_request) < 2:
-                error_message = "400 Invalid request. Usage: GET_PEERS <filename>"
-                return self.tracker_socket.sendto(error_message.encode(), peer_address)
+            error_message = "400 Invalid request. Usage: GET_PEERS <filename>"
+            return self.tracker_socket.sendto(error_message.encode(), peer_address)
        
         filename = split_request[1]
         self.get_peers_for_file(filename, peer_address)    
@@ -218,7 +220,7 @@ class Tracker:
         Periodically removes inactive peers based on timeout.
         """
         while True:
-            time.sleep(30)  # Remove inactive peers every 5 seconds.
+            time.sleep(30)  # Remove inactive peers every 30 seconds.
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):

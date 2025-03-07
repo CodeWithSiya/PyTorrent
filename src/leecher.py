@@ -13,81 +13,103 @@ class Leecher:
 
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
-    """    
-    def __init__(self, peer_id, ip_address, port):
-        
-        """
-        :param peer_id: Identifier for the peer
-        :param ip_address: IP address for the leecher
-        :param port: The port number the leecher is listening on
-        """
-        
-        self.peer_id = peer_id
-        self.ip_address = ip_address
-        self.port = port
-        
-        self.addr = (self.ip_address, self.port)
-        
-        #Socket for TCP connection with a seeder
-        self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    """   
     
-    def register_with_tracker():
+    #TODO: Consider using the `selectors` module for multiplexing instead of relying on threads.
+     
+    def __init__(self, host: str, udp_port: int, tcp_port: int, tracker_timeout: int = 30):
         """
-        Establish a connection with the tracker
+        Initialises the Leecher with the given host, UDP port, TCP port and tracker timeout.
+        
+        :param host: The host address of the tracker.
+        :param udp_port: The UDP port on which the tracker listens for incoming connections.
+        :param tcp_port: The TCP port on which the leecher listens for incoming file requests.
+        :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
+        """
+        # Configuring the leecher details.
+        self.host = host
+        self.udp_port = udp_port
+        self.tcp_port = tcp_port
+        self.tracker_timeout = tracker_timeout
+        
+        # Dictionary to store downloaded file chunks.
+        self.file_chunks = {}
+        
+        # Initialise the UDP socket for tracker communication.
+        self.udp_socket = socket(AF_INET, SOCK_DGRAM)
+        self.udp_socket.bind((self.host, self.udp_port))
+        
+        # Initialise the TCP socket for file sharing.
+        self.tcp_socket = socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp_socket.bind((self.host, self.tcp_port))
+        
+        # Start the TCP server in a seperate thread.
+        self.tcp_server_thread = Thread(target=self.start_tcp_server, daemon=True)
+        self.tcp_server_thread.start()
+    
+    def register_with_tracker(self) -> None:
+        """
+        Registers the leecher with the tracker.
         """   
-        pass
-    
-    def connect_with_seeder(self):
-        """
-        Establish a TCP connection with a seeder
-        """
-        self.tcp_socket.connect(self.addr)
-        
-    
-    def connect_with_seeders():
-        """
-        Establish a TCP connection with multiple seeders in parallel
-        """
-        pass
-        
-        
-    def download_chunk():
-        """
-        Download chunk from a seeder
-        """
-        pass
-          
-    def download_file(self):
-        """
-        Download download file from seeder (temporary)
-        """
-        #recieve filename
-        filename = self.tcp_socket.recv(4096).decode()
-        
-        file = open(filename, "wb")
-        
         try:
-            while True:
-                data = self.tcp_socket.recv(4096) #recieve in chunks
-                if not data:
-                    break
-                #write recieved chunks in file
-                file.write(data)
-                
-        finally:
-            print(f"File recieved successfully and saved as '{filename}'")
-            file.close()
+            request = f"REGISTER leecher"
+            self.udp_socket.sentto(message.encode(), (self.host, self.udp_port))
+            response, peer_address = udp_socket.recvfrom(1024)
+            print(f"Tracker response for request from {peer_address}: {response.decode}")
+        except Exception as e:
+            print(f"Error registering with tracker: {e}")
             
-        self.tcp_socket.close()
-         
-    def resassemble_file():
-        """
-        Reassemble file from the downloaded chunks
-        """
-        pass
+    # def connect_with_seeder(self):
+    #     """
+    #     Establish a TCP connection with a seeder
+    #     """
+    #     #self.tcp_socket.connect(self.addr)
         
-    def become_seeder():
-        """
-        Become a seeder after downloading a file
-        """
-        pass
+    
+    # def connect_with_seeders():
+    #     """
+    #     Establish a TCP connection with multiple seeders in parallel
+    #     """
+    #     pass
+        
+        
+    # def download_chunk():
+    #     """
+    #     Download chunk from a seeder
+    #     """
+    #     pass
+          
+    # def download_file(self):
+    #     """
+    #     Download download file from seeder (temporary)
+    #     """
+    #     #recieve filename
+    #     filename = self.tcp_socket.recv(4096).decode()
+        
+    #     file = open(filename, "wb")
+        
+    #     try:
+    #         while True:
+    #             data = self.tcp_socket.recv(4096) #recieve in chunks
+    #             if not data:
+    #                 break
+    #             #write recieved chunks in file
+    #             file.write(data)
+                
+    #     finally:
+    #         print(f"File recieved successfully and saved as '{filename}'")
+    #         file.close()
+            
+    #     self.tcp_socket.close()
+         
+    # def resassemble_file():
+    #     """
+    #     Reassemble file from the downloaded chunks
+    #     """
+    #     pass
+        
+    # def become_seeder():
+    #     """
+    #     Become a seeder after downloading a file
+    #     """
+    #     pass

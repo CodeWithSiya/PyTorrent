@@ -13,7 +13,7 @@ class Seeder:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """    
-    def __init__(self, peer_id, ip_address, port, file_path):
+    def __init__(self, host:  peer_id, ip_address, port, file_path):
         
         
         self.peer_id = peer_id
