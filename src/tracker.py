@@ -17,7 +17,7 @@ class Tracker:
     """ 
     
     #TODO: Implement a simple checksum for the request messages.   
-        
+     
     def __init__(self, host: str, port: int, peer_timeout: int = 30, peer_limit: int = 10) -> None:
         """
         Initialises the Tracker server with the given host, port, peer timeout, and peer limit.
@@ -41,6 +41,15 @@ class Tracker:
         # Initialise the UDP tracker socket using given the host and port.
         self.tracker_socket = socket(AF_INET, SOCK_DGRAM)
         self.tracker_socket.bind((self.host, self.port))
+        
+    def calculate_checksum(message: str) -> str:
+        """
+        Calculates the SHA-256 checksum for a given message.
+
+        :param message: The input string message.
+        :return: The SHA-256 hexadecimal checksum as a string (256-bits).
+        """
+        return hashlib.sha256(message.encode()).hexdigest()
         
     def start(self) -> None:
         """
