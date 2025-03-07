@@ -49,16 +49,50 @@ class Leecher:
     
     def register_with_tracker(self) -> None:
         """
-        Registers the leecher with the tracker.
+        Registers this leecher with the tracker.
         """   
         try:
-            request = f"REGISTER leecher"
-            self.udp_socket.sentto(message.encode(), (self.host, self.udp_port))
-            response, peer_address = udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response.decode}")
+            # Send a request message to the tracker.
+            request_message = "REGISTER leecher"
+            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+            
+            # Receive a response message from the tracker.
+            response_message, peer_address = udp_socket.recvfrom(1024)
+            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error registering with tracker: {e}")
             
+    def query_tracker_for_files(self) -> None:
+        """
+        Queries the tracker for files available in the network (At least one seeder has the file).
+        """
+        try:
+            # Send a request message to the tracker.
+            request_message = "LIST_FILES"
+            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+            
+            # Receive a response message from the tracker
+            response_message, peer_address = udp_socket.recvfrom(1024)
+            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+        except Exception as e:
+            print(f"Error querying the tracker for files: {e}")
+            
+    def query_tracker_for_peers(self, filename: str) -> None:
+        """
+        Queries the tracker for the a list of peers (seeders) that have a specified file.
+        
+        :param filename: The name of the file being requested.
+        """
+        try:
+            # Send a request message to the tracker.
+            request_message = f"GET_PEERS {filename}"
+        
+            # Receive a response message from the tracker.
+            response_message, peer_address = udp_socket.recvfrom(1024)
+            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+        except Exception as e:
+            print(f"Error querying the tracker for available peers: {e}")
+              
     # def connect_with_seeder(self):
     #     """
     #     Establish a TCP connection with a seeder
