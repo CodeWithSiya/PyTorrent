@@ -60,7 +60,7 @@ class Leecher:
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
             # Receive a response message from the tracker.
-            response_message, peer_address = udp_socket.recvfrom(1024)
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error registering with tracker: {e}")
@@ -75,7 +75,7 @@ class Leecher:
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
             # Receive a response message from the tracker
-            response_message, peer_address = udp_socket.recvfrom(1024)
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error querying the tracker for files: {e}")
@@ -92,7 +92,7 @@ class Leecher:
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
-            response_message, peer_address = udp_socket.recvfrom(1024)
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error querying the tracker for available peers: {e}")\
@@ -107,7 +107,7 @@ class Leecher:
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
-            response_message, peer_address = udp_socket.recvfrom(1024)
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
@@ -122,62 +122,7 @@ class Leecher:
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
-            response_message, peer_address = udp_socket.recvfrom(1024)
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
-                        
-    # def connect_with_seeder(self):
-    #     """
-    #     Establish a TCP connection with a seeder
-    #     """
-    #     #self.tcp_socket.connect(self.addr)
-        
-    
-    # def connect_with_seeders():
-    #     """
-    #     Establish a TCP connection with multiple seeders in parallel
-    #     """
-    #     pass
-        
-        
-    # def download_chunk():
-    #     """
-    #     Download chunk from a seeder
-    #     """
-    #     pass
-          
-    # def download_file(self):
-    #     """
-    #     Download download file from seeder (temporary)
-    #     """
-    #     #recieve filename
-    #     filename = self.tcp_socket.recv(4096).decode()
-        
-    #     file = open(filename, "wb")
-        
-    #     try:
-    #         while True:
-    #             data = self.tcp_socket.recv(4096) #recieve in chunks
-    #             if not data:
-    #                 break
-    #             #write recieved chunks in file
-    #             file.write(data)
-                
-    #     finally:
-    #         print(f"File recieved successfully and saved as '{filename}'")
-    #         file.close()
-            
-    #     self.tcp_socket.close()
-         
-    # def resassemble_file():
-    #     """
-    #     Reassemble file from the downloaded chunks
-    #     """
-    #     pass
-        
-    # def become_seeder():
-    #     """
-    #     Become a seeder after downloading a file
-    #     """
-    #     pass
