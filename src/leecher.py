@@ -16,12 +16,14 @@ class Leecher:
     """   
     
     #TODO: Consider using the `selectors` module for multiplexing instead of relying on threads.
+    #TODO: Handle timeouts efficiently in the code maybe attempt to resend a few times before saying unavailable.
+    #TODO: Implement a checksum using hashing to verify that UDP messages are sent properly.
      
-    def __init__(self, host: str, udp_port: int, tcp_port: int, tracker_timeout: int = 30):
+    def __init__(self, host: str, udp_port: int, tcp_port: int, tracker_timeout: int = 5):
         """
         Initialises the Leecher with the given host, UDP port, TCP port and tracker timeout.
         
-        :param host: The host address of the tracker.
+        :param host: The host address of the leecher.
         :param udp_port: The UDP port on which the tracker listens for incoming connections.
         :param tcp_port: The TCP port on which the leecher listens for incoming file requests.
         :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
@@ -38,9 +40,10 @@ class Leecher:
         # Initialise the UDP socket for tracker communication.
         self.udp_socket = socket(AF_INET, SOCK_DGRAM)
         self.udp_socket.bind((self.host, self.udp_port))
+        self.udp_socket.settimeout(self.tracker_timeout)
         
         # Initialise the TCP socket for file sharing.
-        self.tcp_socket = socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp_socket = socket(AF_INET, SOCK_STREAM)
         self.tcp_socket.bind((self.host, self.tcp_port))
         
         # Start the TCP server in a seperate thread.
@@ -54,7 +57,7 @@ class Leecher:
         try:
             # Send a request message to the tracker.
             request_message = "REGISTER leecher"
-            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
             # Receive a response message from the tracker.
             response_message, peer_address = udp_socket.recvfrom(1024)
@@ -69,7 +72,7 @@ class Leecher:
         try:
             # Send a request message to the tracker.
             request_message = "LIST_FILES"
-            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
             # Receive a response message from the tracker
             response_message, peer_address = udp_socket.recvfrom(1024)
@@ -86,7 +89,7 @@ class Leecher:
         try:
             # Send a request message to the tracker.
             request_message = f"GET_PEERS {filename}"
-            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
             response_message, peer_address = udp_socket.recvfrom(1024)
@@ -101,7 +104,7 @@ class Leecher:
         try:
             # Send a request message to the tracker.
             request_message = f"KEEP_ALIVE"
-            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
             response_message, peer_address = udp_socket.recvfrom(1024)
@@ -109,7 +112,6 @@ class Leecher:
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
     
-    #TODO: Handle timeouts efficiently in the code maybe attempt to resend a few times before saying unavailable. 
     def ping_tracker(self) -> bool:
         """
         Ensures that the tracker is active before attempting to send any messages.
@@ -117,7 +119,7 @@ class Leecher:
         try:
             # Send a request message to the tracker.
             request_message = f"PING"
-            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
             response_message, peer_address = udp_socket.recvfrom(1024)
