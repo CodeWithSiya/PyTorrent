@@ -14,4 +14,4 @@ def compute_checksum(message: str) -> str:
     :param message: The input string message.
     :return: The hexadecimal checksum (256-bits).
     """
-    return hashlib.sha256(message.encode()).hexidigest()
+    return hashlib.sha256(message.encode()).hexdigest()
