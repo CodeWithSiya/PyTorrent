@@ -279,7 +279,6 @@ class Tracker:
     def handle_ping_request(self, peer_address: tuple) -> None:
         """
         Handles a PING request from a peer and responds with a PONG message.
-        - Ensures that the tracker is active before attempting to send any messages.
         
         :param peer_address: The address of the peer sending the PING request.
         """

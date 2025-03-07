@@ -108,6 +108,22 @@ class Leecher:
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
+    
+    #TODO: Handle timeouts efficiently in the code maybe attempt to resend a few times before saying unavailable. 
+    def ping_tracker(self) -> bool:
+        """
+        Ensures that the tracker is active before attempting to send any messages.
+        """
+        try:
+            # Send a request message to the tracker.
+            request_message = f"PING"
+            self.udp_socket.sentto(request_message.encode(), (self.host, self.udp_port))
+        
+            # Receive a response message from the tracker.
+            response_message, peer_address = udp_socket.recvfrom(1024)
+            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+        except Exception as e:
+            print(f"Error notifying the tracker that this peer is alive: {e}")
                         
     # def connect_with_seeder(self):
     #     """
