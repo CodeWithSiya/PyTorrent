@@ -53,7 +53,11 @@ class Leecher:
         """
         Download download file from seeder (temporary)
         """
-        #recieve filename
+        #indicate to seeder that leecher is ready to download file
+        self.tcp_socket.send("DOWNLOAD".encode())
+        
+        
+        #receive filename
         filename = self.tcp_socket.recv(4096).decode()
         
         file = open(filename, "wb")
