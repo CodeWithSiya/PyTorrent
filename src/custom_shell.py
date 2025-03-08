@@ -85,7 +85,7 @@ def print_menu():
     print(f"{BOLD}Choose an option from the menu:\n{menu_options}")
     print(f"{BRIGHT_BLUE}{'_' * terminal_width}")
     
-def type_writer_effect(text:str, delay: int = 0.05):
+def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True):
     """
     Prints text to the terminal with a typewriter effect by printing one character at a time.
     
@@ -97,4 +97,6 @@ def type_writer_effect(text:str, delay: int = 0.05):
         sys.stdout.write(char) 
         sys.stdout.flush()  
         time.sleep(delay)  
-    print()
+    # Only print a newline if nessesary.
+    if newline:
+        print()

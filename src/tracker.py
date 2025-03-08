@@ -59,7 +59,7 @@ class Tracker:
         Starts the tracker server and listens for incoming UDP requests from peers.
         """
         shell.type_writer_effect("=== PyTorrent Tracker ===", 0.05)
-        shell.type_writer_effect("Tracker initialized successfully! 🚀", 0.05)
+        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Tracker initialised successfully! 🚀{shell.RESET}", 0.05)
         shell.type_writer_effect(f"Host: {self.host}", 0.05)
         shell.type_writer_effect(f"Port: {self.port}", 0.05)
         shell.type_writer_effect("\nThe tracker is now running and listening for incoming peer requests.", 0.05)

@@ -15,6 +15,8 @@ class Client:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """
+    # Defining a few class-wide variables for access throughout class.
+    client = None
     
     def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 30):
         """
@@ -49,10 +51,16 @@ class Client:
         # self.tcp_server_thread = Thread(target=self.start_tcp_server, daemon=True)
         # self.tcp_server_thread.start()
     
-    def welcoming_sequence(self) -> None:
+    def welcoming_sequence(self) -> 'Client':
         """
         Welcomes the user to the application and prompts for a username if it's their first time.
+        Registers the client as a leecher during the welcoming sequence.
+        
+        :return: Client instance after welcoming and registration
         """
+        # Defining global variables to class-wide access.
+        global client
+        
         # Specifying the path of the configuration file.
         config_dir = "config"
         config_file = os.path.join(config_dir, "config.txt")
@@ -65,23 +73,37 @@ class Client:
             # Print out the welcoming message using the type writer effect.
             shell.type_writer_effect(f"{shell.BOLD}Welcome to PyTorrent ⚡{shell.RESET}")
             shell.type_writer_effect(f"{shell.BOLD}This is a peer-to-peer file-sharing application where you can download and share files.{shell.RESET}")
-            shell.type_writer_effect(f"{shell.BOLD}Let's get started by setting up your username :)")
             
             # Prompting the user for their username.
-            username = input("Please enter a username: ").strip()
+            shell.type_writer_effect(f"{shell.BOLD}Let's get started by setting up your username :)")
+            shell.type_writer_effect("Please enter a username (Don't worry, you can change this later): ", newline = False)
+            username = input().strip()
             while not username:
                 print("Username cannot be empty. Please try again.")
                 username = input("Please enter a username: ").strip()
                 
             # Save the username to the config file.
-            with open(config_file, "w") as file:
-                file.write(f"username={username}\n")
+            try:
+                with open(config_file, "w") as file:
+                    file.write(f"username={username}\n")
+            except IOError as e:
+                print(f"Error saving username to config file: {e}")
                 
+            # Register this client as a leecher with the client.
+            #TODO: Set up a timer with the tracker here with a message saying it seems like the tracker is offline. Please try again later.
+            shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
+            client.register_with_tracker()
+            
+            # Output confirmation messages.
             shell.type_writer_effect(f"\nWelcome, {username}! You're all set to start using Pytorrent 💯")
             shell.type_writer_effect("You can now search for files, download them, and share them with others.")
-            shell.type_writer_effect("Type 'help' at any time to see a list of available commands.\n")
+            shell.type_writer_effect("\nYou'll begin as a leecher, meaning you can download files but won't be sharing yet.")
+            shell.type_writer_effect("Once you have files to contribute, you can become a seeder and help distribute them 😎")
+            shell.type_writer_effect("\nWe hope you enjoy using PyTorrent just as much as we enjoyed making it :)\n")
+            time.sleep(1.5)
         else:
             # For returning users, find their username in the config file and welcome them back.
+            username = ""
             with open(config_file, "r") as file:
                 lines = file.readlines()
                 for line in lines:
@@ -91,10 +113,16 @@ class Client:
             
             # Ensure that "username=" is not missing from the config file.
             if username:
-                shell.type_writer_effect(f"Welcome back, {username}!")
+                shell.type_writer_effect(f"Welcome back, {username} ⚡")
             else:
-                shell.type_writer_effect("Welcome back! (No username found in config file)")        
-            shell.type_writer_effect("Type 'help' at any time to see a list of available commands.\n")
+                shell.type_writer_effect("Welcome back! (No username found in config file...🫤)")
+            
+            # Register this client as a leecher with the client.
+            shell.type_writer_effect(f"\nPlease wait while we set up things for you...") 
+            client.register_with_tracker()
+            shell.type_writer_effect("You're all set to start using Pytorrent again 💯")
+            shell.type_writer_effect("\nType 'help' at any time to see a list of available commands.\n")
+            time.sleep(1.5)
                            
     def register_with_tracker(self, files: list = []) -> None:
         """
@@ -199,14 +227,18 @@ def main() -> None:
     """
     Main method which runs the PyTorrent client interface.
     """
-    try:
-        shell.clear_shell() 
-        shell.print_logo()
-        
+    # Defining global variables to class-wide access.
+    global client
+    
+    # Clear the terminal and print the PyTorrent logo.
+    shell.clear_shell() 
+    shell.print_logo()
+    
+    try:    
         # Register the user with the client as a leecher.
         client = Client(gethostbyname(gethostname()), 17380, 0)
         client.welcoming_sequence()
-        client.register_with_tracker()
+        
         # Print the initial window for the client.
         shell.clear_shell() 
         shell.print_logo()
@@ -215,7 +247,6 @@ def main() -> None:
         
         if (choice == 1):
             client.get_active_peer_list()
-
     except Exception as e:
         print(e)
     
