@@ -1,4 +1,6 @@
 import shutil
+import time
+import sys
 import os
 
 """
@@ -61,7 +63,7 @@ def print_at_centre(text: str) -> None:
     for line in text.splitlines():
         centered_line = line.center(terminal_width)
         print(centered_line)
-        
+               
 def print_logo() -> None:
     """
     Prints the PyTorrent logo and disclaimer.
@@ -73,3 +75,26 @@ def print_logo() -> None:
     # Print a centered blue line
     terminal_width = shutil.get_terminal_size().columns
     print_at_centre(f"{BRIGHT_BLUE}{'_' * terminal_width}{RESET}")
+    
+def print_menu():
+    """
+    Prints the PyTorrent menu for user interaction.
+    """
+    terminal_width = shutil.get_terminal_size().columns
+    menu_options = f"{BOLD}1. 👥 View Connected Peers\n2. 📂 View Available Files\n3. ⬇️  Download a File\n4. 🚪 Disconnect from PyTorrent{RESET}"
+    print(f"{BOLD}Choose an option from the menu:\n{menu_options}")
+    print(f"{BRIGHT_BLUE}{'_' * terminal_width}")
+    
+def type_writer_effect(text:str, delay: int = 0.10):
+    """
+    Prints text to the terminal with a typewriter effect by printing one character at a time.
+    
+    :param text: The text to display.
+    :param delay: The delay between each character (in seconds).
+    """
+    # Print one character at a time with a short delay between characters, and flush stout after each character.
+    for char in text:
+        sys.stdout.write(char) 
+        sys.stdout.flush()  
+        time.sleep(delay)  
+    print()
