@@ -1,3 +1,4 @@
+import custom_shell as shell
 from threading import *
 from socket import *
 import time 
@@ -136,4 +137,10 @@ def main() -> None:
     """
     Main method which runs the PyTorrent client interface.
     """
+    # Print the initial window for the client.
+    shell.clear_shell() 
+    shell.print_logo()
     
+if __name__ == '__main__':    
+    # Print the initial window.
+    main()

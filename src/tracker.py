@@ -55,7 +55,7 @@ class Tracker:
         """
         Starts the tracker server and listens for incoming UDP requests from peers.
         """
-        print(f"Tracker initialized successfully :)")
+        print(f"PyTorrent tracker initialied successfully :)")
         print(f"Host: {self.host}, Port: {self.port}")
         print(f"Tracker is now listening for incoming peer requests on UDP port {self.port}!")
          
@@ -293,10 +293,10 @@ class Tracker:
         """
         response_message = "200 PONG"
         self.tracker_socket.sendto(response_message.encode(), peer_address)
-                                       
+                                              
 if __name__ == '__main__':    
     # Initialise the tracker.
-    tracker = Tracker(gethostbyname(gethostname()), 55555)
+    tracker = Tracker(gethostbyname(gethostname()), 50000)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
