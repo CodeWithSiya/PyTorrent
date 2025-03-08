@@ -2,6 +2,7 @@ import custom_shell as shell
 from threading import *
 from socket import *
 import time 
+import os
 
 class Client:
     """
@@ -22,7 +23,7 @@ class Client:
         :param host: The host address of the seeder.
         :param udp_port: The UDP port on which the tracker listens for incoming connections.
         :param tcp_port: The TCP port on which the leecher listens for incoming file requests.
-        "param state: The status of the client, either a 'seeder' or 'leecher'
+        "param state: The status of the client, either a 'seeder' or 'leecher' with default state being a leecher.
         :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
         :param file_path: Path to the file to be shared.
         """
@@ -38,17 +39,63 @@ class Client:
         
         # Initialise the UDP socket for tracker communication.
         self.udp_socket = socket(AF_INET, SOCK_DGRAM)
-        self.udp_socket.bind((self.host, self.udp_port))
         
         # Initialise the TCP socket for leecher connections.
         self.tcp_socket = socket(AF_INET, SOCK_STREAM)
         self.tcp_socket.bind((self.host, self.tcp_port))
         self.tcp_socket.listen(5)
         
-        # Start the TCP server in a seperate thread.
-        self.tcp_server_thread = Thread(target=self.start_tcp_server, daemon=True)
-        self.tcp_server_thread.start()
+        # # Start the TCP server in a seperate thread.
+        # self.tcp_server_thread = Thread(target=self.start_tcp_server, daemon=True)
+        # self.tcp_server_thread.start()
+    
+    def welcoming_sequence(self) -> None:
+        """
+        Welcomes the user to the application and prompts for a username if it's their first time.
+        """
+        # Specifying the path of the configuration file.
+        config_dir = "config"
+        config_file = os.path.join(config_dir, "config.txt")
         
+        # Ensure the config directory exists
+        os.makedirs(config_dir, exist_ok=True)
+        
+        # Check if the user is a first-time user (No config file found).
+        if not os.path.exists(config_file):
+            # Print out the welcoming message using the type writer effect.
+            shell.type_writer_effect(f"{shell.BOLD}Welcome to PyTorrent ⚡{shell.RESET}")
+            shell.type_writer_effect(f"{shell.BOLD}This is a peer-to-peer file-sharing application where you can download and share files.{shell.RESET}")
+            shell.type_writer_effect(f"{shell.BOLD}Let's get started by setting up your username :)")
+            
+            # Prompting the user for their username.
+            username = input("Please enter a username: ").strip()
+            while not username:
+                print("Username cannot be empty. Please try again.")
+                username = input("Please enter a username: ").strip()
+                
+            # Save the username to the config file.
+            with open(config_file, "w") as file:
+                file.write(f"username={username}\n")
+                
+            shell.type_writer_effect(f"\nWelcome, {username}! You're all set to start using Pytorrent 💯")
+            shell.type_writer_effect("You can now search for files, download them, and share them with others.")
+            shell.type_writer_effect("Type 'help' at any time to see a list of available commands.\n")
+        else:
+            # For returning users, find their username in the config file and welcome them back.
+            with open(config_file, "r") as file:
+                lines = file.readlines()
+                for line in lines:
+                    if line.startswith("username="):
+                        username = line.split("=")[1].strip()
+                        break
+            
+            # Ensure that "username=" is not missing from the config file.
+            if username:
+                shell.type_writer_effect(f"Welcome back, {username}!")
+            else:
+                shell.type_writer_effect("Welcome back! (No username found in config file)")        
+            shell.type_writer_effect("Type 'help' at any time to see a list of available commands.\n")
+                           
     def register_with_tracker(self, files: list = []) -> None:
         """
         Registers the client with the tracker as a leecher.
@@ -70,6 +117,21 @@ class Client:
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error registering with tracker: {e}")
+            
+    def get_active_peer_list(self) -> None:
+        """
+        Queries the tracker for a list of active peers in the network.
+        """
+        try:
+            # Send a request message to the tracker.
+            request_message = "LIST_ACTIVE"
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            
+            # Receive a response message from the tracker
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
+            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+        except Exception as e:
+            print(f"Error querying the tracker for active_peers: {e}")
             
     def query_tracker_for_files(self) -> None:
         """
@@ -137,9 +199,25 @@ def main() -> None:
     """
     Main method which runs the PyTorrent client interface.
     """
-    # Print the initial window for the client.
-    shell.clear_shell() 
-    shell.print_logo()
+    try:
+        shell.clear_shell() 
+        shell.print_logo()
+        
+        # Register the user with the client as a leecher.
+        client = Client(gethostbyname(gethostname()), 17380, 0)
+        client.welcoming_sequence()
+        client.register_with_tracker()
+        # Print the initial window for the client.
+        shell.clear_shell() 
+        shell.print_logo()
+        shell.print_menu()
+        choice = int(input("Enter your choice:\n"))
+        
+        if (choice == 1):
+            client.get_active_peer_list()
+
+    except Exception as e:
+        print(e)
     
 if __name__ == '__main__':    
     # Print the initial window.

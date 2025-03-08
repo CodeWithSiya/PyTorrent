@@ -1,4 +1,5 @@
 from datetime import datetime
+import custom_shell as shell
 from threading import *
 from socket import *
 import time 
@@ -17,6 +18,8 @@ class Tracker:
     """ 
     
     #TODO: Implement a simple checksum for the request messages.   
+    #TODO: Gracefully exit the application.
+    #TODO: Handle closing all open ports here on 17320 before trying to start this server.
      
     def __init__(self, host: str, port: int, peer_timeout: int = 30, peer_limit: int = 10) -> None:
         """
@@ -55,9 +58,13 @@ class Tracker:
         """
         Starts the tracker server and listens for incoming UDP requests from peers.
         """
-        print(f"PyTorrent tracker initialied successfully :)")
-        print(f"Host: {self.host}, Port: {self.port}")
-        print(f"Tracker is now listening for incoming peer requests on UDP port {self.port}!")
+        shell.type_writer_effect("=== PyTorrent Tracker ===", 0.05)
+        shell.type_writer_effect("Tracker initialized successfully! 🚀", 0.05)
+        shell.type_writer_effect(f"Host: {self.host}", 0.05)
+        shell.type_writer_effect(f"Port: {self.port}", 0.05)
+        shell.type_writer_effect("\nThe tracker is now running and listening for incoming peer requests.", 0.05)
+        shell.type_writer_effect("Peers can register, query for files, or request peer lists.", 0.05)
+        shell.type_writer_effect("Waiting for connections...", 0.05)
          
         while True:
             try:
@@ -173,7 +180,7 @@ class Tracker:
                     response_message = f"200 Peer registered: {peer_address} as {peer_type}"
             else:
                 response_message = "403 Peer limit reached, registration denied."
-                
+        print(response_message)
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                 
     def list_active_peers(self, peer_address: tuple) -> None:
@@ -294,9 +301,13 @@ class Tracker:
         response_message = "200 PONG"
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                                               
-if __name__ == '__main__':    
+if __name__ == '__main__':   
+    # Clear the terminal shell and print the PyTorrent Logo.
+    shell.clear_shell()
+    shell.print_logo()
+    
     # Initialise the tracker.
-    tracker = Tracker(gethostbyname(gethostname()), 50000)
+    tracker = Tracker(gethostbyname(gethostname()), 17380)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
