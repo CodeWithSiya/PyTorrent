@@ -18,7 +18,7 @@ class Tracker:
     :version: 17/03/2025
     """ 
     
-    #TODO: Implement a simple checksum for the request messages.   
+    #TODO: Implement a simple checksum for the request messages.
      
     def __init__(self, host: str, port: int, peer_timeout: int = 30, peer_limit: int = 10) -> None:
         """
@@ -137,7 +137,7 @@ class Tracker:
         elif request_type == "GET_PEERS":
             self.handle_get_peers_request(split_request, peer_address)
         else:
-            error_message = f"400 Unknown request from peer: {request_message}"
+            error_message = f"400 Bad Request: Unknown request type."
             self.tracker_socket.sendto(error_message.encode(), peer_address)
         
     def handle_register_requests(self, split_request: list, peer_address: tuple) -> None:
@@ -149,33 +149,18 @@ class Tracker:
         """
         # Checking if the registration request has a valid format.
         if len(split_request) < 2:
-            error_message = "400 Invalid registration request. Usage: REGISTER <seeder|leecher> [file1, file2, ...]"
+            error_message = "400 Bad Request: Usage: REGISTER <seeder|leecher> [file1, file2, ...]"
             return self.tracker_socket.sendto(error_message.encode(), peer_address)
              
         # Extracting the peer type from the registration request.
         peer_type = split_request[1]
         if peer_type not in ["seeder", "leecher"]:
-            error_message = "400 Invalid peer type. Use 'seeder' or 'leecher'."
+            error_message = "400 Bad Request: Invalid peer type. Use 'seeder' or 'leecher'."
             return self.tracker_socket.sendto(error_message.encode(), peer_address)
             
         # Extract the files from the request if the requesting peer is a seeder.
         files = split_request[2].split(',') if peer_type == "seeder" and len(split_request) > 2 else []
         self.register_peer(peer_address, peer_type, files) 
-        
-    def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
-        """
-        Handles get peers requests.
-        
-        :param split_request: The split request message sent by the peer.
-        :param peer_address: The address of the peer that sent the request.
-        """
-        # Checking if the get peers request has a valid format.
-        if len(split_request) < 2:
-            error_message = "400 Invalid request. Usage: GET_PEERS <filename>"
-            return self.tracker_socket.sendto(error_message.encode(), peer_address)
-       
-        filename = split_request[1]
-        self.get_peers_for_file(filename, peer_address)    
             
     def register_peer(self, peer_address: tuple, peer_type: str, files: list) -> None:
         """
@@ -199,12 +184,45 @@ class Tracker:
                         if file not in self.file_repository:
                             self.file_repository[file] = []
                         self.file_repository[file].append(peer_address)
-                    response_message = f"200 Peer registered: {peer_address} as {peer_type} with files: {files}"
+                    response_message = f"201 Created: Peer registered as {peer_type} with files: {files}"
                 else:
-                    response_message = f"200 Peer registered: {peer_address} as {peer_type}"
+                    response_message = f"201 Created: Peer registered as {peer_type}"
             else:
-                response_message = "403 Peer limit reached, registration denied."
-        print(response_message)
+                response_message = "403 Forbidden: Peer limit reached, registration denied."
+
+        self.tracker_socket.sendto(response_message.encode(), peer_address)
+        
+    def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
+        """
+        Handles get peers requests.
+        
+        :param split_request: The split request message sent by the peer.
+        :param peer_address: The address of the peer that sent the request.
+        """
+        # Checking if the get peers request has a valid format.
+        if len(split_request) < 2:
+            error_message = "400 Bad Request: Usage: GET_PEERS <filename>"
+            return self.tracker_socket.sendto(error_message.encode(), peer_address)
+       
+        filename = split_request[1]
+        self.get_peers_for_file(filename, peer_address)    
+        
+    def get_peers_for_file(self, filename: str, peer_address: tuple) -> None:
+        """
+        Retrieves a list of peers (seeders) that have the requested file and sends it to the requesting peer.
+        
+        :param filename: The name of the file being requested.
+        :param peer_address: The address of the peer that sent the request.
+        """
+        with self.lock:
+            # Check if the file exists in the file_repository.
+            if filename in self.file_repository:
+                # Get the list of seeders for the file.
+                seeders = self.file_repository[filename]
+                response_message = f"200 OK: Peers with {filename}: {seeders}"
+            else:
+                response_message  = f"404 Not Found: File not available: {filename}"
+                      
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                 
     def list_active_peers(self, peer_address: tuple) -> None:
@@ -249,9 +267,9 @@ class Tracker:
                             if not self.file_repository[file]:
                                 del self.file_repository[file]
                 del self.active_peers[peer_address]
-                response_message = f"400 Peer successfully removed: {peer_address}"
+                response_message = f"200 OK: Peer {peer_address} successfully removed."
             else:
-                response_message = f"403 Peer not found in active list: {peer_address}"
+                response_message = f"403 Forbidden: Peer {peer_address} not found."
                 
         self.tracker_socket.sendto(response_message.encode(), peer_address)
             
@@ -274,26 +292,8 @@ class Tracker:
                                     if not self.file_repository[file]:
                                         del self.file_repository[file]
                         del self.active_peers[peer]
-                        print("Clean-up performed at: " + str(datetime.now()))
-                        
-    def get_peers_for_file(self, filename: str, peer_address: tuple) -> None:
-        """
-        Retrieves a list of peers (seeders) that have the requested file and sends it to the requesting peer.
-        
-        :param filename: The name of the file being requested.
-        :param peer_address: The address of the peer that sent the request.
-        """
-        with self.lock:
-            # Check if the file exists in the file_repository.
-            if filename in self.file_repository:
-                # Get the list of seeders for the file.
-                seeders = self.file_repository[filename]
-                response_message = f"200 Peers with {filename}: {seeders}"
-            else:
-                response_message  = f"404 File not found: {filename}"
-                
-        # Send the response to the requesting peer.       
-        self.tracker_socket.sendto(response_message.encode(), peer_address)
+                        formatted_date = str(datetime.now().strftime("%d-$m-%Y %H:%M:%S")
+                        print(f"Clean-up performed at: {formatted_date}")
                      
     def keep_peer_alive(self, peer_address: tuple):
         """
@@ -310,9 +310,9 @@ class Tracker:
             # Update the peer's last activity time to avoid time out if found in the active list.
             if peer_address in self.active_peers:
                 self.active_peers[peer_address]['last_activity'] = time.time()
-                response_message = f"400 Peer's last activity time successfully updated: {peer_address}"
+                response_message = f"200 OK: Peer's last activity time successfully updated: {peer_address}"
             else:
-                response_message = f"403 Peer not found in active list: {peer_address}"
+                response_message = f"403 Forbidden: Peer not found in active list: {peer_address}"
                         
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
@@ -322,7 +322,7 @@ class Tracker:
         
         :param peer_address: The address of the peer sending the PING request.
         """
-        response_message = "200 PONG"
+        response_message = "200 OK: PONG"
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                                               
 if __name__ == '__main__':   

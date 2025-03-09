@@ -29,7 +29,7 @@ class Client:
         :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
         :param file_path: Path to the file to be shared.
         """
-        # Configuring the leecher details.
+        # Configuring the client's details.
         self.host = host
         self.udp_port = udp_port
         self.tcp_port = tcp_port
