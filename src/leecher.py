@@ -1,25 +1,24 @@
 # leecher send message to seeder (testing)
 import socket
+import select
 
 
 class Leecher:
     
-    def __init__(self, peer_id, ip_address, port):
+    def __init__(self, peer_id, seeders):
         
         """
         :param peer_id: Identifier for the peer
-        :param ip_address: IP address for the leecher
-        :param port: The port number the leecher is listening on
+        :param seeders: A list of tuples that contain the IP address and port number of the seeders that the
+        leecher will connect to
         """
         
         self.peer_id = peer_id
-        self.ip_address = ip_address
-        self.port = port
         
-        self.addr = (self.ip_address, self.port)
+        self.seeders = seeders
+        self.sockets = []
         
-        #Socket for TCP connection with a seeder
-        self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
     
     def register_with_tracker():
         """
@@ -27,18 +26,32 @@ class Leecher:
         """   
         pass
     
-    def connect_with_seeder(self):
-        """
-        Establish a TCP connection with a seeder
-        """
-        self.tcp_socket.connect(self.addr)
-        
     
-    def connect_with_seeders():
+    def connect_with_seeders(self):
         """
-        Establish a TCP connection with multiple seeders in parallel
+        Establish a TCP connection with multiple seeders using .select()
         """
-        pass
+        
+        #Connect to list of seeders in non-blocking mode
+        for seeder in self.seeders:
+            seederSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            seederSocket.setblocking(False)
+            
+                        
+            try:
+                #Attempt to establish a connection with a seeder
+                seederSocket.connect(seeder)
+                print(f"Connected to seeder at {seeder}")
+                self.sockets.append(seederSocket)
+            except  BlockingIOError:
+                #Connection still in progress
+                
+                #Connection will occur later
+                self.sockets.append(seederSocket)
+            except Exception as e:
+                print(f"Failed to connect with seeder at {seeder}")
+                
+                
         
         
     def download_chunk():
@@ -53,28 +66,55 @@ class Leecher:
         """
         Download download file from seeder (temporary)
         """
-        #indicate to seeder that leecher is ready to download file
-        self.tcp_socket.send("DOWNLOAD".encode())
         
-        
-        #receive filename
-        filename = self.tcp_socket.recv(4096).decode()
-        
-        file = open(filename, "wb")
-        
-        try:
-            while True:
-                data = self.tcp_socket.recv(4096) #recieve in chunks
-                if not data:
-                    break
-                #write recieved chunks in file
-                file.write(data)
-                
-        finally:
-            print(f"File recieved successfully and saved as '{filename}'")
-            file.close()
+        while self.sockets:
+            # Wait for sockets to become writable
+            _, writable, _ = select.select([], self.sockets, [])
             
-        self.tcp_socket.close()
+            for seederSocket in writable:
+                try:
+                    #Try to establich connection
+                    
+                    seederSocket.getpeername()
+                    print(f"Connection established with {seederSocket.getpeername()}")
+                    
+                    #indicate to seeder that leecher is ready to download file
+                    seederSocket.send("DOWNLOAD".encode())
+                except OSError as e:
+                    print(f"Connection failed: {e}")
+                    
+                    #Remove socket from socket list and close connection
+                    self.sockets.remove(seederSocket)
+                    seederSocket.close()
+                    continue
+            
+            
+            
+            #Wait for filename from seeder:
+            readable, _, _ = select.select(self.sockets, [], [])
+            
+            for seederSocket in readable:
+                filename = seederSocket.recv(4096).decode()
+        
+                file = open(filename, "wb")
+                
+                try:
+                    while True:
+                        data = seederSocket.recv(4096) #recieve in chunks
+                        if not data:
+                            break
+                        #write recieved chunks in file
+                        file.write(data)
+                        
+                #add exception handling later
+                        
+                finally:
+                    print(f"File recieved successfully and saved as '{filename}'")
+                    file.close()
+                    
+                #After getting file close the connection
+                self.sockets.remove(seederSocket)
+                seederSocket.close()
         
         
         

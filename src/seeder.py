@@ -1,6 +1,6 @@
 # seeder receives message from leecher
 import socket 
-import threading
+import select
 
 
 class Seeder:
@@ -20,8 +20,9 @@ class Seeder:
         self.file_path = file_path
         
         self.addr = (self.ip_address, self.port)
-        self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tcp_socket.bind(self.addr)
+        self.serverSocket = None
+        self.sockets_list = []
+
         
     def get_addr(self):
         return self.addr
@@ -46,24 +47,46 @@ class Seeder:
     
     
     
-    def connect_with_leecher(self):
+    def connect_with_leechers(self):
         """
-        Establish a TCP connection with a leecher
+        Establish a TCP connection with leechers
         """
+        self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.serverSocket.setblocking(False)
+        self.serverSocket.bind(self.addr)
+        
          #listen for new connections
-        self.tcp_socket.listen(1)
+        self.serverSocket.listen(5)
         
         
         while True: #Wait for msg
             
-            #create new socket for sending messages
-            conn, addr = self.tcp_socket.accept()
+            # Wait for sockets to becomme readable
+            readable, _, exceptional = select.select(self.sockets_list, [], self.sockets_list)
             
-            #start a thread to send a file
-            thread = threading.Thread(target=self.send_file, args=(self.file_path, conn))
-            thread.start()
-
-            print(f"Connected by {addr} | Total leechers: {threading.active_count() - 1}")
+            for sock in readable:
+                
+                if sock == self.serverSocket:
+                
+                    #create new socket for sending messages
+                    conn, addr = self.serverSocket.accept()
+                    
+                    print(f"Connected to {addr}")
+                    
+                    conn.setblocking(False)
+                    
+                    self.sockets_list.append(conn)
+                    
+                else:
+                    self.send_file(self.file_path, conn)
+                    
+            
+    def close_leecher_connection(self):
+        """
+        Close connection with leecher
+        """
+    
 
     
     def send_file(self, filename, conn):
@@ -78,6 +101,8 @@ class Seeder:
             
             if msg == "DOWNLOAD":
                 wait = False
+                
+        print(f"Sending file {filename}...")
                 
         #send the filename of file being sent
         conn.send(filename.encode())
@@ -101,6 +126,7 @@ class Seeder:
             file.close()
             
             #after file is sent close connection
+            self.sockets_list.remove(conn)
             conn.close()
         
         
