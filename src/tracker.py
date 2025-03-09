@@ -84,7 +84,8 @@ class Tracker:
         shell.type_writer_effect("\nThe tracker is now running and listening for incoming peer requests.", 0.05)
         shell.type_writer_effect("Peers can register, query for files, or request peer lists.", 0.05)
         shell.type_writer_effect("Waiting for connections...", 0.05)
-        shell.type_writer_effect(f"\n{shell.BRIGHT_YELLOW}Press Ctrl + C anytime to shut the tracker down ... gracefully!😉{shell.RESET}", 0.05)
+        shell.type_writer_effect(f"\n{shell.BRIGHT_YELLOW}Press Ctrl + C anytime to shut the tracker down ... gracefully!😉\n{shell.RESET}", 0.05)
+        shell.type_writer_effect("=== Tracker Activity ===", 0.05)
          
         while self.running:
             try:
@@ -184,12 +185,12 @@ class Tracker:
                         if file not in self.file_repository:
                             self.file_repository[file] = []
                         self.file_repository[file].append(peer_address)
-                    response_message = f"201 Created: Peer registered as {peer_type} with files: {files}"
+                    response_message = f"201 Created: Client {peer_address} successfully registered as a {peer_type} with files: {files}"
                 else:
-                    response_message = f"201 Created: Peer registered as {peer_type}"
+                    response_message = f"201 Created: Client {peer_address} successfully registered as a {peer_type}"
             else:
-                response_message = "403 Forbidden: Peer limit reached, registration denied."
-
+                response_message = "403 Forbidden: Client limit reached, registration denied."
+        print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
     def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
@@ -292,7 +293,7 @@ class Tracker:
                                     if not self.file_repository[file]:
                                         del self.file_repository[file]
                         del self.active_peers[peer]
-                        formatted_date = str(datetime.now().strftime("%d-$m-%Y %H:%M:%S")
+                        formatted_date = str(datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
                         print(f"Clean-up performed at: {formatted_date}")
                      
     def keep_peer_alive(self, peer_address: tuple):

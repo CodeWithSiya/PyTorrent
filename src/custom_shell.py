@@ -106,5 +106,5 @@ def hit_any_key_to_continue() -> None:
     """
     Waits for the user to press any key before continuing.
     """
-    type_writer_effect("\nHIT ANY KEY TO CONTINUE...🙂‍")
+    type_writer_effect(f"\n{BRIGHT_YELLOW}HIT ANY KEY TO CONTINUE...🙂‍{RESET}")
     pause("")

@@ -17,6 +17,7 @@ class Client:
     """
     # Defining a few class-wide variables for access throughout class.
     client = None
+    username = "None Found"
     
     def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 30):
         """
@@ -60,6 +61,7 @@ class Client:
         """
         # Defining global variables to class-wide access.
         global client
+        global username
         
         # Specifying the path of the configuration file.
         config_dir = "config"
@@ -92,7 +94,7 @@ class Client:
             # Register this client as a leecher with the client.
             #TODO: Set up a timer with the tracker here with a message saying it seems like the tracker is offline. Please try again later.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
-            client.register_with_tracker()
+            shell.type_writer_effect(f"{client.register_with_tracker()}")
             
             # Output confirmation messages.
             shell.type_writer_effect(f"\nWelcome, {username}! You're all set to start using Pytorrent 💯")
@@ -118,23 +120,26 @@ class Client:
                 shell.type_writer_effect("Welcome back! (No username found in config file...🫤)")
             
             # Register this client as a leecher with the client.
-            shell.type_writer_effect(f"\nPlease wait while we set up things for you...") 
-            client.register_with_tracker()
-            shell.type_writer_effect("You're all set to start using Pytorrent again 💯")
-            shell.type_writer_effect("\nType 'help' at any time to see a list of available commands.\n")
+            shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
+            shell.type_writer_effect(f"{client.register_with_tracker()}")
+            shell.type_writer_effect("\nYou're all set to start using Pytorrent again 💯")
+            shell.type_writer_effect("\nType 'help' at any time to see a list of available commands.")
             shell.hit_any_key_to_continue()
                            
-    def register_with_tracker(self, files: list = []) -> None:
+    def register_with_tracker(self, files: list = []) -> str:
         """
         Registers the client with the tracker as a leecher.
         
         :param files: The list of available files on this client.
+        
+        :return: Message retrieved from the tracker.
         """
         try:
             # Check the state of the client and create an appropriate request message.
             if self.state == "leecher":
                 request_message = f"REGISTER leecher"
             else:
+                # Handle for leecher.
                 request_message = f"REGISTER seeder {files}"
             
             # Send a request message to the tracker.
@@ -142,7 +147,20 @@ class Client:
             
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+            response_message = response_message.decode()
+            
+            # Extract the status code (first three characters) from the response.
+            status_code = response_message[:3]
+            
+            # Handle the respone based on the status code.
+            if status_code == "201":
+                return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}"
+            elif status_code == "400":
+                return f"Error: {response_message[4:]}"
+            elif status_code == "403":
+                return f"Registration Denied: {response_message[4:]}"
+            else:
+                return f"Unexpected response: {response_message}"
         except Exception as e:
             print(f"Error registering with tracker: {e}")
             
@@ -229,6 +247,7 @@ def main() -> None:
     """
     # Defining global variables to class-wide access.
     global client
+    global username
     
     # Clear the terminal and print the PyTorrent logo.
     shell.clear_shell() 
