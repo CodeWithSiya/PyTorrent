@@ -99,8 +99,8 @@ class Client:
             shell.type_writer_effect("You can now search for files, download them, and share them with others.")
             shell.type_writer_effect("\nYou'll begin as a leecher, meaning you can download files but won't be sharing yet.")
             shell.type_writer_effect("Once you have files to contribute, you can become a seeder and help distribute them 😎")
-            shell.type_writer_effect("\nWe hope you enjoy using PyTorrent just as much as we enjoyed making it :)\n")
-            time.sleep(1.5)
+            shell.type_writer_effect("\nWe hope you enjoy using PyTorrent as much as we enjoyed making it :)")
+            shell.hit_any_key_to_continue()
         else:
             # For returning users, find their username in the config file and welcome them back.
             username = ""
@@ -122,7 +122,7 @@ class Client:
             client.register_with_tracker()
             shell.type_writer_effect("You're all set to start using Pytorrent again 💯")
             shell.type_writer_effect("\nType 'help' at any time to see a list of available commands.\n")
-            time.sleep(1.5)
+            shell.hit_any_key_to_continue()
                            
     def register_with_tracker(self, files: list = []) -> None:
         """

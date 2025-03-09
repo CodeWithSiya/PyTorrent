@@ -1,3 +1,4 @@
+from getch import getch, pause
 import shutil
 import time
 import sys
@@ -85,7 +86,7 @@ def print_menu():
     print(f"{BOLD}Choose an option from the menu:\n{menu_options}")
     print(f"{BRIGHT_BLUE}{'_' * terminal_width}")
     
-def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True):
+def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True) -> None:
     """
     Prints text to the terminal with a typewriter effect by printing one character at a time.
     
@@ -100,3 +101,10 @@ def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True):
     # Only print a newline if nessesary.
     if newline:
         print()
+        
+def hit_any_key_to_continue() -> None:
+    """
+    Waits for the user to press any key before continuing.
+    """
+    type_writer_effect("\nHIT ANY KEY TO CONTINUE...🙂‍")
+    pause("")

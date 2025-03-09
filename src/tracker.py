@@ -2,6 +2,7 @@ from datetime import datetime
 import custom_shell as shell
 from threading import *
 from socket import *
+import signal
 import time 
 
 class Tracker:
@@ -18,8 +19,6 @@ class Tracker:
     """ 
     
     #TODO: Implement a simple checksum for the request messages.   
-    #TODO: Gracefully exit the application.
-    #TODO: Handle closing all open ports here on 17320 before trying to start this server.
      
     def __init__(self, host: str, port: int, peer_timeout: int = 30, peer_limit: int = 10) -> None:
         """
@@ -45,6 +44,12 @@ class Tracker:
         self.tracker_socket = socket(AF_INET, SOCK_DGRAM)
         self.tracker_socket.bind((self.host, self.port))
         
+        # Flag to manage tracker shutdown.
+        self.running = True
+        
+        # Register signal handler for graceful shutdown.
+        signal.signal(signal.SIGINT, self.shutdown_handler)
+        
     def calculate_checksum(message: str) -> str:
         """
         Calculates the SHA-256 checksum for a given message.
@@ -53,11 +58,25 @@ class Tracker:
         :return: The SHA-256 hexadecimal checksum as a string (256-bits).
         """
         return hashlib.sha256(message.encode()).hexdigest()
+    
+    def shutdown_handler(self, signum: int, frame: None) -> None:
+        """
+        Handles graceful shutdown when Ctrl+C is pressed.
+        
+        :param signum: The signal number received.
+        :param frame: The current stack frame (unused).
+        """
+        shell.type_writer_effect(f"\n{shell.BRIGHT_RED}Shutting the tracker down...{shell.RESET}", 0.05)
+        tracker.running = False  # Stop the tracker running loop.
+        tracker.tracker_socket.close()  # Close the socket.
+        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Tracker shut down successfully! 🚀{shell.RESET}", 0.05)
         
     def start(self) -> None:
         """
         Starts the tracker server and listens for incoming UDP requests from peers.
+        Supports graceful shutdown.
         """
+        # Display tracker startup messages.
         shell.type_writer_effect("=== PyTorrent Tracker ===", 0.05)
         shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Tracker initialised successfully! 🚀{shell.RESET}", 0.05)
         shell.type_writer_effect(f"Host: {self.host}", 0.05)
@@ -65,8 +84,9 @@ class Tracker:
         shell.type_writer_effect("\nThe tracker is now running and listening for incoming peer requests.", 0.05)
         shell.type_writer_effect("Peers can register, query for files, or request peer lists.", 0.05)
         shell.type_writer_effect("Waiting for connections...", 0.05)
+        shell.type_writer_effect(f"\n{shell.BRIGHT_YELLOW}Press Ctrl + C anytime to shut the tracker down ... gracefully!😉{shell.RESET}", 0.05)
          
-        while True:
+        while self.running:
             try:
                 # Read and decode the message from the UDP socket and get the peer's address.
                 message, peer_address = self.tracker_socket.recvfrom(1024)
@@ -75,9 +95,13 @@ class Tracker:
                 # Create a new thread to process each new peer request.
                 request_thread = Thread(target=self.process_peer_requests, args=(request_message, self.tracker_socket, peer_address))
                 request_thread.start()
+            except OSError:
+                break  
             except Exception as e:
                 error_message = f"Error receiving data: {e}"
-                self.tracker_socket.sendto(error_message.encode(), peer_address)
+                self.tracker_socket.sendto(error_message.encode(), peer_address)# This will happen when the socket is closed during shutdown.
+        
+        self.tracker_socket.close()
                 
     def process_peer_requests(self, request_message: str, peer_socket: socket, peer_address: tuple) -> None:
         """
