@@ -1,4 +1,5 @@
 from getch import getch, pause
+import random
 import shutil
 import time
 import sys
@@ -64,7 +65,49 @@ def print_at_centre(text: str) -> None:
     for line in text.splitlines():
         centered_line = line.center(terminal_width)
         print(centered_line)
-               
+        
+def print_at_left(text: str) -> None:
+    """
+    Aligns the given text string on the right of the terminal.
+    
+    :param text: The string text to be printed on the right of the terminal.
+    """
+    type_writer_effect(text)
+    
+def print_at_right(text: str) -> None:
+    """
+    Aligns the given text string on the left of the terminal.
+    
+    :param text: The string text to be printed on the left of the terminal.
+    """
+    # Calculate the width of the terminal window.
+    terminal_width = shutil.get_terminal_size().columns
+    
+    # Calculate the padding for right alignment.
+    padding = terminal_width - len(text)
+    
+    # Print the text with the padding if not too long.
+    if padding > 0:
+        print(' ' * padding, end = "")
+        type_writer_effect(f"{text}")
+    else:
+        type_writer_effect(f"{text}")
+          
+def get_random_emoji() -> str:
+    """
+    Gets a random emoji from a list of predefined emojis.
+    
+    :return: The random
+    """
+    # List of emojis to choose from
+    emojis = ['😀', '😎', '🔥', '🌟', '🧙🏽', '🚀', '⚡', '👽', '👾', '👻', '🛹', '🤖']
+    
+    # Randomly select an emoji from the list
+    random_emoji = random.choice(emojis)
+    
+    # Return the selected emoji
+    return random_emoji
+                
 def print_logo() -> None:
     """
     Prints the PyTorrent logo and disclaimer.
@@ -81,9 +124,12 @@ def print_menu():
     """
     Prints the PyTorrent menu for user interaction.
     """
+    # Calculate the width of the terminal window
     terminal_width = shutil.get_terminal_size().columns
-    menu_options = f"{BOLD}1. 👥 View Connected Peers\n2. 📂 View Available Files\n3. ⬇️  Download a File\n4. 🚪 Disconnect from PyTorrent{RESET}"
-    print(f"{BOLD}Choose an option from the menu:\n{menu_options}")
+    
+    # Print the menu with the provided options.
+    menu_options = f"{BOLD}1.👥  View Connected Peers\n2. 📂 View Available Files\n3. ⬇️ Download a File\n4. 🚪 Disconnect from PyTorrent{RESET}"
+    type_writer_effect(f"\n{BOLD}Please select an option from the menu below:\n{menu_options}", 0.05)
     print(f"{BRIGHT_BLUE}{'_' * terminal_width}")
     
 def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True) -> None:
