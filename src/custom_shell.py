@@ -72,7 +72,7 @@ def print_at_left(text: str) -> None:
     
     :param text: The string text to be printed on the right of the terminal.
     """
-    type_writer_effect(text)
+    type_writer_effect(f"{BOLD}{text}{RESET}")
     
 def print_at_right(text: str) -> None:
     """
@@ -89,9 +89,9 @@ def print_at_right(text: str) -> None:
     # Print the text with the padding if not too long.
     if padding > 0:
         print(' ' * padding, end = "")
-        type_writer_effect(f"{text}")
+        type_writer_effect(f"{BOLD}{GREEN}{text}{RESET}")
     else:
-        type_writer_effect(f"{text}")
+        type_writer_effect(f"{BOLD}{GREEN}{GREEN}{RESET}")
           
 def get_random_emoji() -> str:
     """
@@ -129,8 +129,8 @@ def print_menu():
     
     # Print the menu with the provided options.
     menu_options = f"{BOLD}1.👥  View Connected Peers\n2. 📂 View Available Files\n3. ⬇️ Download a File\n4. 🚪 Disconnect from PyTorrent{RESET}"
-    type_writer_effect(f"\n{BOLD}Please select an option from the menu below:\n{menu_options}", 0.05)
-    print(f"{BRIGHT_BLUE}{'_' * terminal_width}")
+    type_writer_effect(f"\n{BOLD}Please select an option from the menu below:\n{menu_options}", 0.03)
+    print(f"{BRIGHT_BLUE}{'_' * terminal_width}{RESET}")
     
 def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True) -> None:
     """

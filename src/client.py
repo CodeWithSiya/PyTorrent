@@ -19,7 +19,7 @@ class Client:
     client = None
     username = "None Found"
     
-    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 30):
+    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10):
         """
         Initialises the Client with the given host, UDP port, TCP port, state and tracker timeout.
         
@@ -145,22 +145,30 @@ class Client:
             # Send a request message to the tracker.
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
-            # Receive a response message from the tracker.
-            response_message, peer_address = self.udp_socket.recvfrom(1024)
-            response_message = response_message.decode()
+            #TODO: FIX THIS!
+            # Set a timeout for receiving the response from the tracker.
+            self.udp_socket.settimeout(self.tracker_timeout)
             
-            # Extract the status code (first three characters) from the response.
-            status_code = response_message[:3]
-            
-            # Handle the respone based on the status code.
-            if status_code == "201":
-                return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}"
-            elif status_code == "400":
-                return f"Error: {response_message[4:]}"
-            elif status_code == "403":
-                return f"Registration Denied: {response_message[4:]}"
-            else:
-                return f"Unexpected response: {response_message}"
+            try:
+                # Receive a response message from the tracker.
+                response_message, peer_address = self.udp_socket.recvfrom(1024)
+                response_message = response_message.decode()
+                
+                # Extract the status code (first three characters) from the response.
+                status_code = response_message[:3]
+                
+                # Handle the respone based on the status code.
+                if status_code == "201":
+                    return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}"
+                elif status_code == "400":
+                    return f"Error: {response_message[4:]}"
+                elif status_code == "403":
+                    return f"Registration Denied: {response_message[4:]}"
+                else:
+                    return f"Unexpected response: {response_message}"
+            except socket.timeout:
+                # Tracker does not respond within the timeout time.
+                return f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later!{shell.RESET}"
         except Exception as e:
             print(f"Error registering with tracker: {e}")
             
@@ -248,19 +256,19 @@ def main() -> None:
     # Defining global variables to class-wide access.
     global client
     global username
-    
-    # Clear the terminal and print the PyTorrent logo.
-    shell.clear_shell() 
-    shell.print_logo()
-    
-    try:    
-        # Register the user with the client as a leecher.
-        client = Client(gethostbyname(gethostname()), 17380, 0)
-        client.welcoming_sequence()
         
+    try:    
+        # Instanciate the client instance, then register with the tracker though the welcoming sequence.
+        client = Client(gethostbyname(gethostname()), 17380, 0)
+        shell.clear_shell() 
+        shell.print_logo()
+        client.welcoming_sequence()
+         
         # Print the initial window for the client.
         shell.clear_shell() 
         shell.print_logo()
+        shell.type_writer_effect(f"Hi, {username}!{shell.get_random_emoji()}", 0.05)
+        shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You are currently a {client.state.title()}!{shell.get_random_emoji()}{shell.RESET}", 0.05)
         shell.print_menu()
         choice = int(input("Enter your choice:\n"))
         
