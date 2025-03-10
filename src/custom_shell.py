@@ -100,7 +100,8 @@ def get_random_emoji() -> str:
     :return: The random
     """
     # List of emojis to choose from
-    emojis = ['😀', '😎', '🔥', '🌟', '🧙🏽', '🚀', '⚡', '👽', '👾', '👻', '🛹', '🤖']
+    emojis = ['😀', '😎', '🔥', '🌟', '🛸', '🚀', '⚡', '👽', '👾', '👻', '🛹', '🤖', '🎸', 
+              '🎮', '🕹️', '💻', '📡', '🔮', '🧠', '🎧', '🥷', '🦾', '🛸', '🌌']
     
     # Randomly select an emoji from the list
     random_emoji = random.choice(emojis)
@@ -128,7 +129,7 @@ def print_menu():
     terminal_width = shutil.get_terminal_size().columns
     
     # Print the menu with the provided options.
-    menu_options = f"{BOLD}1.👥  View Connected Peers\n2. 📂 View Available Files\n3. ⬇️ Download a File\n4. 🚪 Disconnect from PyTorrent{RESET}"
+    menu_options = f"{BOLD}1. View Connected Peers 👥\n2. View Available Files 📂\n3. Download a File ⬇️\n4. Disconnect from PyTorrent🚪\n5. Change Your Username ✏️{RESET}"
     type_writer_effect(f"\n{BOLD}Please select an option from the menu below:\n{menu_options}", 0.03)
     print(f"{BRIGHT_BLUE}{'_' * terminal_width}{RESET}")
     

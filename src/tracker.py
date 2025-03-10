@@ -3,6 +3,7 @@ import custom_shell as shell
 from threading import *
 from socket import *
 import signal
+import json
 import time 
 
 class Tracker:
@@ -126,7 +127,8 @@ class Tracker:
         if request_type == "REGISTER":
             self.handle_register_requests(split_request, peer_address)
         elif request_type == "LIST_ACTIVE":
-            self.list_active_peers(peer_address)
+            username = split_request[1] if len(split_request) == 2 else "unknown"
+            self.list_active_peers(peer_address, username)
         elif request_type == "LIST_FILES":
             self.list_available_files(peer_address)
         elif request_type == "DISCONNECT":
@@ -150,7 +152,7 @@ class Tracker:
         """
         # Checking if the registration request has a valid format.
         if len(split_request) < 2:
-            error_message = "400 Bad Request: Usage: REGISTER <seeder|leecher> [file1, file2, ...]"
+            error_message = "400 Bad Request: Usage: REGISTER <seeder|leecher> <username> [file1, file2, ...]"
             return self.tracker_socket.sendto(error_message.encode(), peer_address)
              
         # Extracting the peer type from the registration request.
@@ -160,10 +162,11 @@ class Tracker:
             return self.tracker_socket.sendto(error_message.encode(), peer_address)
             
         # Extract the files from the request if the requesting peer is a seeder.
-        files = split_request[2].split(',') if peer_type == "seeder" and len(split_request) > 2 else []
-        self.register_peer(peer_address, peer_type, files) 
+        username = split_request[2]
+        files = split_request[3].split(',') if peer_type == "seeder" and len(split_request) > 2 else []
+        self.register_peer(peer_address, peer_type, files, username) 
             
-    def register_peer(self, peer_address: tuple, peer_type: str, files: list) -> None:
+    def register_peer(self, peer_address: tuple, peer_type: str, files: list, username: str = "unknown") -> None:
         """
         Registers a new peer with the tracker if the peer limit is not reached.
         
@@ -175,6 +178,7 @@ class Tracker:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
                 self.active_peers[peer_address] = {
+                    'username': username,
                     'last_activity': time.time(), 
                     'type': peer_type,
                     'files': files if peer_type == "seeder" else []
@@ -185,9 +189,9 @@ class Tracker:
                         if file not in self.file_repository:
                             self.file_repository[file] = []
                         self.file_repository[file].append(peer_address)
-                    response_message = f"201 Created: Client {peer_address} successfully registered as a {peer_type} with files: {files}"
+                    response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}."
                 else:
-                    response_message = f"201 Created: Client {peer_address} successfully registered as a {peer_type}"
+                    response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}."
             else:
                 response_message = "403 Forbidden: Client limit reached, registration denied."
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
@@ -226,7 +230,7 @@ class Tracker:
                       
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                 
-    def list_active_peers(self, peer_address: tuple) -> None:
+    def list_active_peers(self, peer_address: tuple, username: str = "unknown") -> None:
         """
         Sends a list of currently active peers (seeders and leechers) to the requesting peer.
         
@@ -234,11 +238,26 @@ class Tracker:
         """
         with self.lock:
             # Obtain the active seeders and leechers and list them out.
-            active_seeders = [peer for peer, info in self.active_peers.items() if info['type'] == 'seeder']
-            active_leechers = [peer for peer, info in self.active_peers.items() if info['type'] == 'leecher']
-            active_list = {'seeders': active_seeders, 'leechers': active_leechers}
+            try:
+                active_seeders = [
+                {'peer': peer, 'username': info.get('username', 'unknown')}
+                for peer, info in self.active_peers.items() if info['type'] == 'seeder'
+                ]
             
-        self.tracker_socket.sendto(str(active_list).encode(), peer_address)
+                active_leechers = [
+                    {'peer': peer, 'username': info.get('username', 'unknown')}
+                    for peer, info in self.active_peers.items() if info['type'] == 'leecher'
+                ]
+                
+                active_list = {'seeders': active_seeders, 'leechers': active_leechers}
+            
+                # Convert dictionary into JSON format.
+                response = json.dumps(active_list)         
+            except Exception as e:
+                print(f"{shell.BRIGHT_RED}500 Internal Server Error: Failed to retrieve active clients for Client '{username}' with address {peer_address}.{shell.RESET}")   
+                         
+        print(f"{shell.BRIGHT_MAGENTA}200 OK: Client '{username}' with address {peer_address} successfully obtained a list of active clients.{shell.RESET}")
+        self.tracker_socket.sendto(response.encode(), peer_address)
         
     def list_available_files(self, peer_address: tuple) -> None:
         """
@@ -279,7 +298,7 @@ class Tracker:
         Periodically removes inactive peers based on timeout.
         """
         while True:
-            time.sleep(30)  # Remove inactive peers every 30 seconds.
+            time.sleep(60)  # Remove inactive peers every 30 seconds.
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):
@@ -294,7 +313,7 @@ class Tracker:
                                         del self.file_repository[file]
                         del self.active_peers[peer]
                         formatted_date = str(datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
-                        print(f"Clean-up performed at: {formatted_date}")
+                        print(f"{shell.BRIGHT_MAGENTA}Clean-up performed at: {formatted_date}{shell.RESET}")
                      
     def keep_peer_alive(self, peer_address: tuple):
         """
@@ -332,7 +351,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker(gethostbyname(gethostname()), 17380)
+    tracker = Tracker('137.158.160.145', 17380)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)

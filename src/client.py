@@ -1,6 +1,7 @@
 import custom_shell as shell
 from threading import *
 from socket import *
+import json
 import time 
 import os
 
@@ -17,7 +18,7 @@ class Client:
     """
     # Defining a few class-wide variables for access throughout class.
     client = None
-    username = "None Found"
+    username = "unknown"
     
     def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10):
         """
@@ -134,18 +135,18 @@ class Client:
         
         :return: Message retrieved from the tracker.
         """
+        global username
         try:
             # Check the state of the client and create an appropriate request message.
             if self.state == "leecher":
-                request_message = f"REGISTER leecher"
+                request_message = f"REGISTER leecher {username}"
             else:
                 # Handle for leecher.
-                request_message = f"REGISTER seeder {files}"
+                request_message = f"REGISTER seeder {username} {files}"
             
             # Send a request message to the tracker.
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
-            #TODO: FIX THIS!
             # Set a timeout for receiving the response from the tracker.
             self.udp_socket.settimeout(self.tracker_timeout)
             
@@ -176,14 +177,42 @@ class Client:
         """
         Queries the tracker for a list of active peers in the network.
         """
+        global username
         try:
             # Send a request message to the tracker.
-            request_message = "LIST_ACTIVE"
+            request_message = f"LIST_ACTIVE {username}"
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            shell.type_writer_effect(f"{shell.WHITE}Fetching the list of active users for you... Please hold on!{shell.RESET}", 0.04)
             
-            # Receive a response message from the tracker
+            # Receive a response message from the tracker with active users and decode that message.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+            active_users = json.loads(response_message.decode())
+            shell.type_writer_effect(f"{shell.BRIGHT_GREEN}The list of active peers has been successfully retrieved!{shell.RESET}", 0.04)
+    
+            # Print information about the a leechers in a readable way.
+            if not active_users["leechers"]:
+                print("⚡ Leechers:\n- No leechers currently active. 😞\n")
+            else:
+                print("⚡ Leechers:")
+                for leecher in active_users["leechers"]:
+                    ip, port = leecher['peer']
+                    emoji = shell.get_random_emoji() 
+                    print(f"- IP Address: {ip}")
+                    print(f"- Port: {port}")
+                    print(f"- Username: {leecher['username']}")
+                    print(f"- Status: {emoji} Active Leecher\n")    
+            if not active_users["seeders"]:
+                print(f"🚀 Seeders:\n- No seeders currently active. 😞\n")
+            else:
+                print(f"🚀 Seeders:")
+                # Print information about our seeders.
+                for seeder in active_users["seeders"]:
+                    emoji = shell.get_random_emoji() 
+                    print(f"- IP Address: {ip}")
+                    print(f"- Port: {port}")
+                    print(f"- Username: {leecher['username']}")
+                    print(f"- Status: {emoji} Active Seeder\n")
+    
         except Exception as e:
             print(f"Error querying the tracker for active_peers: {e}")
             
@@ -263,6 +292,8 @@ def main() -> None:
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
+        
+        # Start pinging the periodically
          
         # Print the initial window for the client.
         shell.clear_shell() 
@@ -270,10 +301,11 @@ def main() -> None:
         shell.type_writer_effect(f"Hi, {username}!{shell.get_random_emoji()}", 0.05)
         shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You are currently a {client.state.title()}!{shell.get_random_emoji()}{shell.RESET}", 0.05)
         shell.print_menu()
-        choice = int(input("Enter your choice:\n"))
         
-        if (choice == 1):
-            client.get_active_peer_list()
+        while True:
+            choice = int(input("Please input the number of your selected option: "))
+            if (choice == 1):
+                client.get_active_peer_list()
     except Exception as e:
         print(e)
     
