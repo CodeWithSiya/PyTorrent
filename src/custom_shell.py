@@ -121,7 +121,7 @@ def print_logo() -> None:
     terminal_width = shutil.get_terminal_size().columns
     print_at_centre(f"{BRIGHT_BLUE}{'_' * terminal_width}{RESET}")
     
-def print_menu():
+def print_menu() -> None:
     """
     Prints the PyTorrent menu for user interaction.
     """
@@ -131,9 +131,19 @@ def print_menu():
     # Print the menu with the provided options.
     menu_options = f"{BOLD}1. View Connected Peers 👥\n2. View Available Files 📂\n3. Download a File ⬇️\n4. Disconnect from PyTorrent🚪\n5. Change Your Username ✏️{RESET}"
     type_writer_effect(f"\n{BOLD}Please select an option from the menu below:\n{menu_options}", 0.03)
+    type_writer_effect(f"\n{BOLD}{BRIGHT_YELLOW}Type 'help' at any time to see a list of available commands :){RESET}", 0.03)
+    print(f"{BRIGHT_BLUE}{'_' * terminal_width}{RESET}")
+    
+def print_line() -> None:
+    """
+    Prints the blue line used in the PyTorrent interface.
+    """
+    # Calculate the width of the terminal window and print the line.
+    terminal_width = shutil.get_terminal_size().columns
     print(f"{BRIGHT_BLUE}{'_' * terminal_width}{RESET}")
     
 def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True) -> None:
+    
     """
     Prints text to the terminal with a typewriter effect by printing one character at a time.
     

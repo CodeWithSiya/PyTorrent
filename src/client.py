@@ -202,7 +202,7 @@ class Client:
                     print(f"- Username: {leecher['username']}")
                     print(f"- Status: {emoji} Active Leecher\n")    
             if not active_users["seeders"]:
-                print(f"🚀 Seeders:\n- No seeders currently active. 😞\n")
+                print(f"🚀 Seeders:\n- No seeders currently active. 😞")
             else:
                 print(f"🚀 Seeders:")
                 # Print information about our seeders.
@@ -211,12 +211,12 @@ class Client:
                     print(f"- IP Address: {ip}")
                     print(f"- Port: {port}")
                     print(f"- Username: {leecher['username']}")
-                    print(f"- Status: {emoji} Active Seeder\n")
+                    print(f"- Status: {emoji} Active Seeder")
     
         except Exception as e:
             print(f"Error querying the tracker for active_peers: {e}")
             
-    def query_tracker_for_files(self) -> None:
+    def get_available_files(self) -> None:
         """
         Queries the tracker for files available in the network (At least one seeder has the file).
         """
@@ -293,7 +293,7 @@ def main() -> None:
         shell.print_logo()
         client.welcoming_sequence()
         
-        # Start pinging the periodically
+        # Start pinging the periodically to ensure that the tracker does not deactivate this client.
          
         # Print the initial window for the client.
         shell.clear_shell() 
@@ -303,9 +303,25 @@ def main() -> None:
         shell.print_menu()
         
         while True:
-            choice = int(input("Please input the number of your selected option: "))
-            if (choice == 1):
-                client.get_active_peer_list()
+            # Obtain the users input for their selected option.
+            choice = input("Please input the number of your selected option:\n")
+            
+            # Process the users request.
+            if choice.lower() != 'help':
+                try:
+                    choice = int(choice)
+                    if choice == 1:
+                        client.get_active_peer_list()
+                    elif choice == 2:
+                        client.get_available_files()
+                    else:
+                        print("Invalid choice, please try again.")
+                except ValueError:
+                    print("Please enter a valid number or 'help'.")
+            else:
+                shell.print_menu()
+            shell.print_line()
+     
     except Exception as e:
         print(e)
     
