@@ -134,7 +134,8 @@ class Tracker:
         elif request_type == "DISCONNECT":
             self.remove_peer(peer_address)
         elif request_type == "KEEP_ALIVE":
-            self.keep_peer_alive(peer_address)
+            username = split_request[1] if len(split_request) == 2 else "unknown"
+            self.keep_peer_alive(peer_address, username)
         elif request_type == "PING":
             self.handle_ping_request(peer_address)
         elif request_type == "GET_PEERS":
@@ -252,7 +253,8 @@ class Tracker:
                 active_list = {'seeders': active_seeders, 'leechers': active_leechers}
             
                 # Convert dictionary into JSON format.
-                response = json.dumps(active_list)         
+                response = json.dumps(active_list)  
+                print(response)       
             except Exception as e:
                 print(f"{shell.BRIGHT_RED}500 Internal Server Error: Failed to retrieve active clients for Client '{username}' with address {peer_address}.{shell.RESET}")   
                          
@@ -298,7 +300,7 @@ class Tracker:
         Periodically removes inactive peers based on timeout.
         """
         while True:
-            time.sleep(60)  # Remove inactive peers every 30 seconds.
+            time.sleep(10)  # Remove inactive peers every 30 seconds.
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):
@@ -315,7 +317,7 @@ class Tracker:
                         formatted_date = str(datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
                         print(f"{shell.BRIGHT_MAGENTA}Clean-up performed at: {formatted_date}{shell.RESET}")
                      
-    def keep_peer_alive(self, peer_address: tuple):
+    def keep_peer_alive(self, peer_address: tuple, username: str = "unknown"):
         """
         Updates the last activity time of a peer to keep it active in the tracker.
         If the peer is found, its timestamp is refreshed; otherwise, an error is returned.
@@ -330,10 +332,11 @@ class Tracker:
             # Update the peer's last activity time to avoid time out if found in the active list.
             if peer_address in self.active_peers:
                 self.active_peers[peer_address]['last_activity'] = time.time()
-                response_message = f"200 OK: Peer's last activity time successfully updated: {peer_address}"
+                response_message = f"200 OK: Successfully updated last activity time for client '{username}' at address {peer_address}."
             else:
                 response_message = f"403 Forbidden: Peer not found in active list: {peer_address}"
-                        
+                  
+        print(response_message)      
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
     def handle_ping_request(self, peer_address: tuple) -> None:
