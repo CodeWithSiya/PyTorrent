@@ -35,21 +35,19 @@ class Leecher:
         #Connect to list of seeders in non-blocking mode
         for seeder in self.seeders:
             seederSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            seederSocket.setblocking(False)
             
-                        
             try:
                 #Attempt to establish a connection with a seeder
                 seederSocket.connect(seeder)
                 print(f"Connected to seeder at {seeder}")
                 self.sockets.append(seederSocket)
-            except  BlockingIOError:
-                #Connection still in progress
-                
-                #Connection will occur later
-                self.sockets.append(seederSocket)
-            except Exception as e:
+
+            except ConnectionRefusedError:
                 print(f"Failed to connect with seeder at {seeder}")
+                
+        if not self.sockets:
+            print("No available seeders.")
+            return
                 
                 
         
@@ -94,28 +92,33 @@ class Leecher:
             readable, _, _ = select.select(self.sockets, [], [])
             
             for seederSocket in readable:
-                filename = seederSocket.recv(4096).decode()
-        
-                file = open(filename, "wb")
-                
                 try:
-                    while True:
-                        data = seederSocket.recv(4096) #recieve in chunks
-                        if not data:
-                            break
-                        #write recieved chunks in file
-                        file.write(data)
-                        
-                #add exception handling later
-                        
-                finally:
-                    print(f"File recieved successfully and saved as '{filename}'")
-                    file.close()
+                    filename = seederSocket.recv(4096).decode()
+            
+                    file = open(filename, "wb")
                     
-                #After getting file close the connection
-                self.sockets.remove(seederSocket)
-                seederSocket.close()
-        
+                    try:
+                        while True:
+                            data = seederSocket.recv(4096) #recieve in chunks
+                            if not data:
+                                break
+                            #write recieved chunks in file
+                            file.write(data)
+                            
+                        #add exception later
+                            
+                    finally:
+                        print(f"File recieved successfully and saved as '{filename}'")
+                        file.close()
+                        
+                    #After getting file close the connection
+                    self.sockets.remove(seederSocket)
+                    seederSocket.close()
+                except ConnectionResetError:
+                    print(f"Seeder {s.getpeername()} forcefully disconnected")
+                    self.sockets.remove(seederSocket)
+                    seederSocket.close()
+            
         
         
     def resassemble_file():
