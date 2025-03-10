@@ -93,7 +93,9 @@ class Leecher:
             
             for seederSocket in readable:
                 try:
-                    filename = seederSocket.recv(4096).decode()
+                    filename_length = int.from_bytes(seederSocket.recv(4), byteorder='big')
+                    
+                    filename = seederSocket.recv(filename_length).decode()
             
                     file = open(filename, "wb")
                     
@@ -115,7 +117,7 @@ class Leecher:
                     self.sockets.remove(seederSocket)
                     seederSocket.close()
                 except ConnectionResetError:
-                    print(f"Seeder {s.getpeername()} forcefully disconnected")
+                    print(f"Seeder {seederSocket.getpeername()} forcefully disconnected")
                     self.sockets.remove(seederSocket)
                     seederSocket.close()
             

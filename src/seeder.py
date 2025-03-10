@@ -109,6 +109,13 @@ class Seeder:
                 
         print(f"File requested from: {sock.getpeername()}")
         print(f"Sending file {filename}...")
+        
+                
+        filename_length = len(filename.encode()).to_bytes(4, byteorder='big')
+        
+        
+        sock.send(filename_length)
+            
                 
         #send the filename of file being sent
         sock.send(filename.encode())
