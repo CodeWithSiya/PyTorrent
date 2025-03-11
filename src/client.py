@@ -1,6 +1,7 @@
 import custom_shell as shell
 from threading import *
 from socket import *
+import hashlib
 import json
 import time 
 import os
@@ -20,7 +21,7 @@ class Client:
     client = None
     username = "unknown"
     
-    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10):
+    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10, file_dir: str = "user/shared_files"):
         """
         Initialises the Client with the given host, UDP port, TCP port, state and tracker timeout.
         
@@ -29,7 +30,7 @@ class Client:
         :param tcp_port: The TCP port on which the leecher listens for incoming file requests.
         "param state: The status of the client, either a 'seeder' or 'leecher' with default state being a leecher.
         :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
-        :param file_path: Path to the file to be shared.
+        :param file_path: Path to the directory containing files to be shared..
         """
         # Configuring the client's details.
         self.host = host
@@ -37,10 +38,18 @@ class Client:
         self.tcp_port = tcp_port
         self.state = state
         self.tracker_timeout = tracker_timeout
+        self.file_dir = file_dir
+        self.metadata_file = os.path.join(file_dir, "shared_files.json")
         
-        # Dictionary to store downloaded file chunks and a Lock for thread safety.
+        # Dictionary to store file metadata, a variable for the shared data path and a Lock for thread safety.
         self.file_chunks = {}
         self.lock = Lock()
+        
+        # Ensure that the shared directory exists and create it if it does not exists.
+        os.makedirs(self.file_dir, exist_ok = True)
+        
+        # Load or initialise metadata.
+        self.load_metadata()
         
         # Initialise the UDP socket for tracker communication.
         self.udp_socket = socket(AF_INET, SOCK_DGRAM)
@@ -49,15 +58,148 @@ class Client:
         self.tcp_socket = socket(AF_INET, SOCK_STREAM)
         self.tcp_socket.bind((self.host, self.tcp_port))
         self.tcp_socket.listen(5)
+        
+        # if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
+        self.scan_directory_for_files()
+        
+    def load_metadata(self) -> None:
+        """
+        Load metadata from the shared_files.json file.
+        If the file doesn't exist, initialise an empty metadata dictionary.
+        """
+        # If the metadata file exists, open the file, read from it and load it into the file chunks dict.
+        with self.lock:
+            if os.path.exists(self.metadata_file):
+                with open(self.metadata_file, "r") as file:
+                    self.file_chunks = json.load(file).get("files", {})
+            else:
+                self.file_chunks = {}
+            
+    def save_metadata(self):
+        """
+        Save metadata to the shared_files.json file.
+        This ensures that changes to the shared files are stored.
+        """
+        with self.lock:
+            # Write the changes to a temporary file before the actual file to race conditions,
+            temp_file = self.metadata_file + ".tmp"
+            with open(temp_file, "w") as file:
+                json.dump({"files": self.file_chunks}, file, indent=4)
+            os.replace(temp_file, self.metadata_file)
+            
+    def generate_file_metadata(self, file_path: str, chunk_size: int = 1024 * 1024):
+        """
+        Generates metadata for a file, including SHA-256 checksums and chunk information. 
+        """
+        # Initialise the metadata dictionary for later use.
+        metadata = {
+            "size": os.path.getsize(file_path),  # Total file size.
+            "checksum": "",  # Checksum of the entire file.
+            "chunks": []  # List of chunks with their metadata.
+        }
+ 
+        # Create a SHA-256 hash object, open the file in binary mode and read it in chunks.
+        sha256 = hashlib.sha256()
+        with open(file_path, "rb") as file:
+            chunk = file.read(chunk_size)
+            while chunk:
+                sha256.update(chunk)
+                chunk = file.read(chunk_size)
+        # Store the final checksum hash in the metadata.
+        metadata["checksum"] = sha256.hexdigest()
+        
+        # Generate chunk metadata for the file.
+        with open(file_path, "rb") as file:
+            # Initialise the chunk ID and read the first chunk.
+            chunk_id = 0
+            chunk = file.read(chunk_size)
+            
+            # Loop through each chunk of the file.
+            while chunk:
+                # Add the current chunk's metadata.
+                metadata["chunks"].append({
+                    "id": chunk_id,
+                    "size": len(chunk),
+                    "checksum": hashlib.sha256(chunk).hexdigest()
+                })
+                # Move to the next chunk.
+                chunk_id += 1
+                chunk = file.read(chunk_size)
                 
-        # # Start the TCP server in a seperate thread.
-        # self.tcp_server_thread = Thread(target=self.start_tcp_server, daemon=True)
-        # self.tcp_server_thread.start()
-    
-    def welcoming_sequence(self) -> 'Client':
+        return metadata
+          
+    # TODO: SCAN BEFORE REGISTERING
+    # TODO: Add functionality for deleted files.
+    def scan_directory_for_files(self) -> list:
+        """
+        Scans the shared directory for files and updates metadata.
+        If a file is new or has been modified, its metadata is regenerated.
+        """
+        # Scanning through the specified directory for files to add into the metadata shared_files.json file.
+        for filename in os.listdir(self.file_dir):
+            file_path = os.path.join(self.file_dir, filename)
+            # Ensure the current item is a file that's not the shared metadata itself.
+            if os.path.isfile(file_path) and filename != "shared_files.json":
+                # If the file is not already tracked in file_chunks, add it.
+                if filename not in self.file_chunks:
+                    print(f"Adding new file: {filename}")
+                    self.file_chunks[filename] = self.generate_file_metadata(file_path)
+                else:
+                    # Check if the file has been modified or corrupted using checksums.
+                    existing_checksum = self.file_chunks[filename]["checksum"]
+                    new_checksum = self.generate_file_metadata(file_path)["checksum"]
+                    # Check if the file has been modified, and generate new file metadata.
+                    if existing_checksum != new_checksum:
+                        print(f"Updating modified file: {filename}")
+                        self.file_chunks[filename] = self.generate_file_metadata(file_path)           
+        # Save updated metadata
+        self.save_metadata()
+        
+    def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
+        """
+        Retrieves a specific chunk of a file from disk.
+        
+        :param filename: Name of the file.
+        :param chunk_id: ID of the chunk to retrieve.
+        :param chunk_size: Size of each chunk in bytes (default: 1 MB).
+        
+        :return: The chunk data as bytes, or None if the chunk is not found or an error occurs.
+        """
+        # Check if the file exists in the file_chunks dictionary.
+        if filename not in self.file_chunks:
+            print(f"File '{filename} not found in shared files.")
+            return None
+        
+        # Get the full file path.
+        file_path = os.path.join(self.file_dir, filename) 
+        try:
+            with open(file_path, "rb") as file:
+                file.seek(chunk_id * chunk_size)  # Move to the start of the chunk.
+                return file.read(chunk_size)  # Read and return the chunk data.
+        except Exception as e:
+            print(f"Error reading chunk {chunk_id} from file '{filename}': {e}")
+            return None
+        
+    def handle_tcp_connection(self, peer_socket: socket):
+        """
+        Handles incoming TCP connections from peers requesting file chunks or metadata.
+        """
+        
+    def download_file(self, filename:str, seeder_address: tuple, output_dir: str = "user/downloads") -> None:
+        """
+        Downloads a file from a seeder by requesting chunks one by one.
+        """     
+        
+    def request_chunk(self, filename: str, chunk_id: int, seeder_address: tuple) -> bytes:
+        """
+        Requests a specific chunk from a seeder.
+        """
+      
+    def welcoming_sequence(self) -> None:
         """
         Welcomes the user to the application and prompts for a username if it's their first time.
-        Registers the client as a leecher during the welcoming sequence.
+        - New users are always registered as leechers.
+        - Returning users are registered as seeders if they have shared files, otherwise as leechers.
         
         :return: Client instance after welcoming and registration
         """
@@ -69,7 +211,7 @@ class Client:
         config_dir = "config"
         config_file = os.path.join(config_dir, "config.txt")
         
-        # Ensure the config directory exists
+        # Ensure the config directory exists.
         os.makedirs(config_dir, exist_ok=True)
         
         # Check if the user is a first-time user (No config file found).
@@ -93,8 +235,7 @@ class Client:
             except IOError as e:
                 print(f"Error saving username to config file: {e}")
                 
-            # Register this client as a leecher with the client.
-            #TODO: Set up a timer with the tracker here with a message saying it seems like the tracker is offline. Please try again later.
+            # Register this client as a leecher with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
             shell.type_writer_effect(f"{client.register_with_tracker()}")
             
@@ -124,8 +265,16 @@ class Client:
                 shell.type_writer_effect(f"Welcome back, {username} ⚡")
             else:
                 shell.type_writer_effect("Welcome back! (No username found in config file...🫤)")
-            
-            # Register this client as a leecher with the client.
+                
+            # If shared_files.json exists and has data, register as seeder else register as a leecher.
+            if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
+                self.state = "seeder"
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have shared files. Registering as a seeder!{shell.RESET}")
+            else:
+                self.state = "leecher"
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have no shared files. Registering as a leecher!{shell.RESET}")
+         
+            # Register this client with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
             shell.type_writer_effect(f"{client.register_with_tracker()}")
             
@@ -153,9 +302,19 @@ class Client:
             if self.state == "leecher":
                 request_message = f"REGISTER leecher {username}"
             else:
-                # Handle for leecher.
-                request_message = f"REGISTER seeder {username} {files}"
-                
+                # If the client is a seeder, include the list of shared files.
+                file_data = {
+                    "files": [
+                        {
+                            "filename": filename, 
+                            "size": metadata["size"]
+                        }
+                        for filename, metadata in self.file_chunks.items()
+                    ]
+                }
+                # Convert file_data to JSON and include it in the request message
+                request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
+                  
             # Send a request message to the tracker.
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
@@ -318,8 +477,8 @@ def main() -> None:
     global username
         
     try:    
-        # Instanciate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17380, 0)
+        # Instantiate the client instance, then register with the tracker though the welcoming sequence.
+        client = Client(gethostbyname(gethostname()), 17385, 0)
         
         shell.clear_shell() 
         shell.print_logo()

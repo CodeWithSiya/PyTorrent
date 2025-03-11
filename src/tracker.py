@@ -152,8 +152,8 @@ class Tracker:
         :param peer_address: The address of the peer that sent the request.
         """
         # Checking if the registration request has a valid format.
-        if len(split_request) < 2:
-            error_message = "400 Bad Request: Usage: REGISTER <seeder|leecher> <username> [file1, file2, ...]"
+        if len(split_request) < 3:
+            error_message = "400 Bad Request: Usage: REGISTER <seeder|leecher> <username> [JSON file data]"
             return self.tracker_socket.sendto(error_message.encode(), peer_address)
              
         # Extracting the peer type from the registration request.
@@ -161,10 +161,30 @@ class Tracker:
         if peer_type not in ["seeder", "leecher"]:
             error_message = "400 Bad Request: Invalid peer type. Use 'seeder' or 'leecher'."
             return self.tracker_socket.sendto(error_message.encode(), peer_address)
+        
+        # Extract the username from the request.
+        username = split_request[2]
             
         # Extract the files from the request if the requesting peer is a seeder.
-        username = split_request[2]
-        files = split_request[3].split(',') if peer_type == "seeder" and len(split_request) > 2 else []
+        files = []
+        if peer_type == "seeder":
+            if len(split_request) < 4:
+                error_message = "400 Bad Request: Missing JSON metadata for seeder."
+                return self.tracker_socket.sendto(error_message.encode(), peer_address)
+            
+            try:
+                # Parse the JSON file data.
+                json_data_str = ' '.join(split_request[3:])
+                metadata = json.loads(json_data_str)
+                if "files" in metadata:
+                    files = metadata["files"] 
+                else:
+                    error_message = "400 Bad Request: Invalid JSON metadata. 'files' field is missing."
+                    return self.tracker_socket.sendto(error_message.encode(), peer_address)
+            except json.JSONDecodeError:
+                error_message = "400 Bad Request: Invalid JSON format in metadata."
+                return self.tracker_socket.sendto(error_message.encode(), peer_address)
+            
         self.register_peer(peer_address, peer_type, files, username) 
             
     def register_peer(self, peer_address: tuple, peer_type: str, files: list, username: str = "unknown") -> None:
@@ -185,16 +205,18 @@ class Tracker:
                     'files': files if peer_type == "seeder" else []
                 }
                 # If the peer is a seeder, update the file_repository.
-                if peer_type == 'seeder' and files:
-                    for file in files:
-                        if file not in self.file_repository:
-                            self.file_repository[file] = []
-                        self.file_repository[file].append(peer_address)
-                    response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}."
+            if peer_type == 'seeder' and files:
+                for file_info in files:
+                    filename = file_info.get("filename")
+                    if filename:
+                        if filename not in self.file_repository:
+                            self.file_repository[filename] = []
+                        self.file_repository[filename].append(peer_address)
+                        response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
+                    else:
+                        response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
                 else:
-                    response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}."
-            else:
-                response_message = "403 Forbidden: Client limit reached, registration denied."
+                    response_message = "403 Forbidden: Client limit reached, registration denied."
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
@@ -354,7 +376,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17380)
+    tracker = Tracker('137.158.160.145', 17385)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
