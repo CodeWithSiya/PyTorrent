@@ -314,7 +314,8 @@ class Client:
                 }
                 # Convert file_data to JSON and include it in the request message
                 request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
-                  
+                print(request_message)
+                     
             # Send a request message to the tracker.
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
@@ -381,11 +382,12 @@ class Client:
                 print(f"🚀 Seeders:")
                 # Print information about our seeders.
                 for seeder in active_users["seeders"]:
+                    ip, port = seeder['peer']
                     emoji = shell.get_random_emoji() 
                     print(f"- IP Address: {ip}")
                     print(f"- Port: {port}")
-                    print(f"- Username: {leecher['username']}")
-                    print(f"- Status: {emoji} Active Seeder")
+                    print(f"- Username: {seeder['username']}")
+                    print(f"- Status: {emoji} Active Seeder\n")
     
         except Exception as e:
             print(f"Error querying the tracker for active_peers: {e}")
