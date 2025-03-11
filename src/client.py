@@ -1,6 +1,7 @@
 import custom_shell as shell
 from threading import *
 from socket import *
+import json
 import time 
 import os
 
@@ -17,7 +18,7 @@ class Client:
     """
     # Defining a few class-wide variables for access throughout class.
     client = None
-    username = "None Found"
+    username = "unknown"
     
     def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10):
         """
@@ -37,8 +38,9 @@ class Client:
         self.state = state
         self.tracker_timeout = tracker_timeout
         
-        # Dictionary to store downloaded file chunks.
+        # Dictionary to store downloaded file chunks and a Lock for thread safety.
         self.file_chunks = {}
+        self.lock = Lock()
         
         # Initialise the UDP socket for tracker communication.
         self.udp_socket = socket(AF_INET, SOCK_DGRAM)
@@ -47,7 +49,7 @@ class Client:
         self.tcp_socket = socket(AF_INET, SOCK_STREAM)
         self.tcp_socket.bind((self.host, self.tcp_port))
         self.tcp_socket.listen(5)
-        
+                
         # # Start the TCP server in a seperate thread.
         # self.tcp_server_thread = Thread(target=self.start_tcp_server, daemon=True)
         # self.tcp_server_thread.start()
@@ -96,6 +98,10 @@ class Client:
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
             shell.type_writer_effect(f"{client.register_with_tracker()}")
             
+            # Start the KEEP_ALIVE thread.
+            self.keep_alive_thread = Thread(target=self.keep_alive, daemon = True)
+            self.keep_alive_thread.start()
+            
             # Output confirmation messages.
             shell.type_writer_effect(f"\nWelcome, {username}! You're all set to start using Pytorrent 💯")
             shell.type_writer_effect("You can now search for files, download them, and share them with others.")
@@ -122,6 +128,13 @@ class Client:
             # Register this client as a leecher with the client.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
             shell.type_writer_effect(f"{client.register_with_tracker()}")
+            
+            # Start the KEEP_ALIVE thread.
+            # Should only start if registration is successful!
+            self.keep_alive_thread = Thread(target=self.keep_alive, daemon = True)
+            self.keep_alive_thread.start()
+            
+            # Print confirmation messages.
             shell.type_writer_effect("\nYou're all set to start using Pytorrent again 💯")
             shell.type_writer_effect("\nType 'help' at any time to see a list of available commands.")
             shell.hit_any_key_to_continue()
@@ -134,18 +147,18 @@ class Client:
         
         :return: Message retrieved from the tracker.
         """
+        global username
         try:
             # Check the state of the client and create an appropriate request message.
             if self.state == "leecher":
-                request_message = f"REGISTER leecher"
+                request_message = f"REGISTER leecher {username}"
             else:
                 # Handle for leecher.
-                request_message = f"REGISTER seeder {files}"
-            
+                request_message = f"REGISTER seeder {username} {files}"
+                
             # Send a request message to the tracker.
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
-            #TODO: FIX THIS!
             # Set a timeout for receiving the response from the tracker.
             self.udp_socket.settimeout(self.tracker_timeout)
             
@@ -170,24 +183,58 @@ class Client:
                 # Tracker does not respond within the timeout time.
                 return f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later!{shell.RESET}"
         except Exception as e:
-            print(f"Error registering with tracker: {e}")
+            print(f"Error registering with tracker: {e}")       
             
     def get_active_peer_list(self) -> None:
         """
         Queries the tracker for a list of active peers in the network.
         """
+        global username
         try:
             # Send a request message to the tracker.
-            request_message = "LIST_ACTIVE"
-            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            request_message = f"LIST_ACTIVE {username}"
             
-            # Receive a response message from the tracker
+            # Acquire the lock for thread safety.
+            self.lock.acquire()
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            shell.type_writer_effect(f"{shell.WHITE}Fetching the list of active users for you... Please hold on!{shell.RESET}", 0.04)
+            
+            # Receive a response message from the tracker with active users and decode that message.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+            active_users = json.loads(response_message.decode())
+            shell.type_writer_effect(f"{shell.BRIGHT_GREEN}The list of active peers has been successfully retrieved!{shell.RESET}", 0.04)
+    
+            # Print information about the a leechers in a readable way.
+            if not active_users["leechers"]:
+                print("⚡ Leechers:\n- No leechers currently active. 😞\n")
+            else:
+                print("⚡ Leechers:")
+                for leecher in active_users["leechers"]:
+                    ip, port = leecher['peer']
+                    emoji = shell.get_random_emoji() 
+                    print(f"- IP Address: {ip}")
+                    print(f"- Port: {port}")
+                    print(f"- Username: {leecher['username']}")
+                    print(f"- Status: {emoji} Active Leecher\n")    
+            if not active_users["seeders"]:
+                print(f"🚀 Seeders:\n- No seeders currently active. 😞")
+            else:
+                print(f"🚀 Seeders:")
+                # Print information about our seeders.
+                for seeder in active_users["seeders"]:
+                    emoji = shell.get_random_emoji() 
+                    print(f"- IP Address: {ip}")
+                    print(f"- Port: {port}")
+                    print(f"- Username: {leecher['username']}")
+                    print(f"- Status: {emoji} Active Seeder")
+    
         except Exception as e:
             print(f"Error querying the tracker for active_peers: {e}")
             
-    def query_tracker_for_files(self) -> None:
+        # Release the lock after execution.
+        self.lock.release()
+            
+    def get_available_files(self) -> None:
         """
         Queries the tracker for files available in the network (At least one seeder has the file).
         """
@@ -219,20 +266,33 @@ class Client:
         except Exception as e:
             print(f"Error querying the tracker for available peers: {e}")\
     
-    def notify_tracker_alive(self) -> None:
+    def send_keep_alive(self) -> None:
         """
-        Notifies the tracker that the leecher is still alive.
+        Notifies the tracker that this peer is still active in the network.
         """
+        global username
+        self.lock.acquire()
         try:
             # Send a request message to the tracker.
-            request_message = f"KEEP_ALIVE"
+            request_message = f"KEEP_ALIVE {username}"
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
         
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+            #print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
+        self.lock.release()
+            
+    def keep_alive(self) -> None:
+        """
+        Periodically sends a KEEP_ALIVE message to the tracker.
+        This method periodically notifies the tracker that this peer is alive.
+        """
+        while True:
+            # Send the KEEP_ALIVE message to the tracker every 5 seconds.
+            self.send_keep_alive()
+            time.sleep(2)
     
     def ping_tracker(self) -> bool:
         """
@@ -260,6 +320,7 @@ def main() -> None:
     try:    
         # Instanciate the client instance, then register with the tracker though the welcoming sequence.
         client = Client(gethostbyname(gethostname()), 17380, 0)
+        
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
@@ -270,10 +331,27 @@ def main() -> None:
         shell.type_writer_effect(f"Hi, {username}!{shell.get_random_emoji()}", 0.05)
         shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You are currently a {client.state.title()}!{shell.get_random_emoji()}{shell.RESET}", 0.05)
         shell.print_menu()
-        choice = int(input("Enter your choice:\n"))
         
-        if (choice == 1):
-            client.get_active_peer_list()
+        while True:
+            # Obtain the users input for their selected option.
+            choice = input("Please input the number of your selected option:\n")
+            
+            # Process the users request -> Add a clear command.
+            if choice.lower() != 'help':
+                try:
+                    choice = int(choice)
+                    if choice == 1:
+                        client.get_active_peer_list()
+                    elif choice == 2:
+                        client.get_available_files()
+                    else:
+                        print("Invalid choice, please try again.")
+                except ValueError:
+                    print("Please enter a valid number or 'help'.")
+            else:
+                shell.print_menu()
+            shell.print_line()
+     
     except Exception as e:
         print(e)
     
