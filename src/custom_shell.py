@@ -142,8 +142,7 @@ def print_line() -> None:
     terminal_width = shutil.get_terminal_size().columns
     print(f"{BRIGHT_BLUE}{'_' * terminal_width}{RESET}")
     
-def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True) -> None:
-    
+def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True) -> None:   
     """
     Prints text to the terminal with a typewriter effect by printing one character at a time.
     
