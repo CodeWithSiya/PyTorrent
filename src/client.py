@@ -134,6 +134,7 @@ class Client:
         return metadata
           
     # TODO: SCAN BEFORE REGISTERING
+    # TODO: Add functionality for deleted files.
     def scan_directory_for_files(self) -> list:
         """
         Scans the shared directory for files and updates metadata.
@@ -158,6 +159,46 @@ class Client:
                         self.file_chunks[filename] = self.generate_file_metadata(file_path)           
         # Save updated metadata
         self.save_metadata()
+        
+    def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
+        """
+        Retrieves a specific chunk of a file from disk.
+        
+        :param filename: Name of the file.
+        :param chunk_id: ID of the chunk to retrieve.
+        :param chunk_size: Size of each chunk in bytes (default: 1 MB).
+        
+        :return: The chunk data as bytes, or None if the chunk is not found or an error occurs.
+        """
+        # Check if the file exists in the file_chunks dictionary.
+        if filename not in self.file_chunks:
+            print(f"File '{filename} not found in shared files.")
+            return None
+        
+        # Get the full file path.
+        file_path = os.path.join(self.file_dir, filename) 
+        try:
+            with open(file_path, "rb") as file:
+                file.seek(chunk_id * chunk_size)  # Move to the start of the chunk.
+                return file.read(chunk_size)  # Read and return the chunk data.
+        except Exception as e:
+            print(f"Error reading chunk {chunk_id} from file '{filename}': {e}")
+            return None
+        
+    def handle_tcp_connection(self, peer_socket: socket):
+        """
+        Handles incoming TCP connections from peers requesting file chunks or metadata.
+        """
+        
+    def download_file(self, filename:str, seeder_address: tuple, output_dir: str = "user/downloads") -> None:
+        """
+        Downloads a file from a seeder by requesting chunks one by one.
+        """     
+        
+    def request_chunk(self, filename: str, chunk_id: int, seeder_address: tuple) -> bytes:
+        """
+        Requests a specific chunk from a seeder.
+        """
       
     def welcoming_sequence(self) -> 'Client':
         """
