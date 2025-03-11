@@ -205,18 +205,18 @@ class Tracker:
                     'files': files if peer_type == "seeder" else []
                 }
                 # If the peer is a seeder, update the file_repository.
-            if peer_type == 'seeder' and files:
-                for file_info in files:
-                    filename = file_info.get("filename")
-                    if filename:
-                        if filename not in self.file_repository:
-                            self.file_repository[filename] = []
-                        self.file_repository[filename].append(peer_address)
-                        response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
-                    else:
-                        response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
-                else:
-                    response_message = "403 Forbidden: Client limit reached, registration denied."
+                if peer_type == 'seeder' and files:
+                    for file_info in files:
+                        filename = file_info.get("filename")
+                        if filename:
+                            if filename not in self.file_repository:
+                                self.file_repository[filename] = []
+                            self.file_repository[filename].append(peer_address)
+                            response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
+                        else:
+                            response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
+            else:
+                response_message = "403 Forbidden: Client limit reached, registration denied."
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
@@ -275,8 +275,7 @@ class Tracker:
                 active_list = {'seeders': active_seeders, 'leechers': active_leechers}
             
                 # Convert dictionary into JSON format.
-                response = json.dumps(active_list)  
-                print(response)       
+                response = json.dumps(active_list)       
             except Exception as e:
                 print(f"{shell.BRIGHT_RED}500 Internal Server Error: Failed to retrieve active clients for Client '{username}' with address {peer_address}.{shell.RESET}")   
                          
@@ -326,18 +325,25 @@ class Tracker:
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):
+                    # Check if the peer has been inactive for longer than the timeout.
                     if current_time - self.active_peers[peer]['last_activity'] > self.peer_timeout:
-                        # TODO: Alert the user that their device is going to timeout before timing out!
+                        # If the peer is a seeder, remove their files from the file_repository.
                         if self.active_peers[peer]['type'] == 'seeder':
-                            for file in self.active_peers[peer]['files']:
-                                if file in self.file_repository and peer in self.file_repository[file]:
-                                    self.file_repository[file].remove(peer)
-                                    # If no more seeders, remove the file from the repository.
-                                    if not self.file_repository[file]:
-                                        del self.file_repository[file]
-                        del self.active_peers[peer]
-                        formatted_date = str(datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
+                            for file_info in self.active_peers[peer]['files']: 
+                                filename = file_info['filename'] 
+                                if filename in self.file_repository and peer in self.file_repository[filename]:
+                                    self.file_repository[filename].remove(peer)
+                                    # If no more seeders for the file, remove the file from the repository.
+                                    if not self.file_repository[filename]:
+                                        del self.file_repository[filename]
+                                            
+                        # Remove the inactive peer from active_peers.
+                        del self.active_peers[peer]    
+                          
+                        # Log the cleanup action.
+                        formatted_date = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
                         print(f"{shell.BRIGHT_MAGENTA}Clean-up performed at: {formatted_date}{shell.RESET}")
+                        print(f"{shell.BRIGHT_RED}Removed inactive peer: {peer}{shell.RESET}")
                      
     def keep_peer_alive(self, peer_address: tuple, username: str = "unknown"):
         """
