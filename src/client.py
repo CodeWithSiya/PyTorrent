@@ -105,7 +105,7 @@ class Client:
         }
  
         # Create a SHA-256 hash object, open the file in binary mode and read it in chunks.
-        sha256 = hashlib.256()
+        sha256 = hashlib.sha256()
         with open(file_path, "rb") as file:
             chunk = file.read(chunk_size)
             while chunk:
