@@ -17,15 +17,11 @@ class Client:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """
-    
-    # Store in array, how can I send chunks and store them in sequence?
-    # TODO: If there are files in the shared folder, then automatically register as a seeder then register as leecher when
-    
     # Defining a few class-wide variables for access throughout class.
     client = None
     username = "unknown"
     
-    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "seeder", tracker_timeout: int = 10, file_dir: str = "user/shared_files"):
+    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10, file_dir: str = "user/shared_files"):
         """
         Initialises the Client with the given host, UDP port, TCP port, state and tracker timeout.
         
@@ -63,9 +59,8 @@ class Client:
         self.tcp_socket.bind((self.host, self.tcp_port))
         self.tcp_socket.listen(5)
         
-        # If the client is a seeder, scan the directory for files and prepare chunks.
-        if self.state == "seeder":
-            self.scan_directory_for_files()
+        # if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
+        self.scan_directory_for_files()
         
     def load_metadata(self) -> None:
         """
@@ -200,10 +195,11 @@ class Client:
         Requests a specific chunk from a seeder.
         """
       
-    def welcoming_sequence(self) -> 'Client':
+    def welcoming_sequence(self) -> None:
         """
         Welcomes the user to the application and prompts for a username if it's their first time.
-        Registers the client as a leecher during the welcoming sequence.
+        - New users are always registered as leechers.
+        - Returning users are registered as seeders if they have shared files, otherwise as leechers.
         
         :return: Client instance after welcoming and registration
         """
@@ -215,7 +211,7 @@ class Client:
         config_dir = "config"
         config_file = os.path.join(config_dir, "config.txt")
         
-        # Ensure the config directory exists
+        # Ensure the config directory exists.
         os.makedirs(config_dir, exist_ok=True)
         
         # Check if the user is a first-time user (No config file found).
@@ -239,8 +235,7 @@ class Client:
             except IOError as e:
                 print(f"Error saving username to config file: {e}")
                 
-            # Register this client as a leecher with the client.
-            #TODO: Set up a timer with the tracker here with a message saying it seems like the tracker is offline. Please try again later.
+            # Register this client as a leecher with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
             shell.type_writer_effect(f"{client.register_with_tracker()}")
             
@@ -270,8 +265,16 @@ class Client:
                 shell.type_writer_effect(f"Welcome back, {username} ⚡")
             else:
                 shell.type_writer_effect("Welcome back! (No username found in config file...🫤)")
-            
-            # Register this client as a leecher with the client.
+                
+            # If shared_files.json exists and has data, register as seeder else register as a leecher.
+            if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
+                self.state = "seeder"
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have shared files. Registering as a seeder!{shell.RESET}")
+            else:
+                self.state = "leecher"
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have no shared files. Registering as a leecher!{shell.RESET}")
+         
+            # Register this client with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
             shell.type_writer_effect(f"{client.register_with_tracker()}")
             
@@ -299,9 +302,19 @@ class Client:
             if self.state == "leecher":
                 request_message = f"REGISTER leecher {username}"
             else:
-                # Handle for leecher.
-                request_message = f"REGISTER seeder {username} {files}"
-                
+                # If the client is a seeder, include the list of shared files.
+                file_data = {
+                    "files": [
+                        {
+                            "filename": filename, 
+                            "size": metadata["size"]
+                        }
+                        for filename, metadata in self.file_chunks.items()
+                    ]
+                }
+                # Convert file_data to JSON and include it in the request message
+                request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
+                  
             # Send a request message to the tracker.
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             
@@ -464,8 +477,8 @@ def main() -> None:
     global username
         
     try:    
-        # Instanciate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17381, 0)
+        # Instantiate the client instance, then register with the tracker though the welcoming sequence.
+        client = Client(gethostbyname(gethostname()), 17385, 0)
         
         shell.clear_shell() 
         shell.print_logo()
