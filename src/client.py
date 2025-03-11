@@ -314,7 +314,6 @@ class Client:
                 }
                 # Convert file_data to JSON and include it in the request message
                 request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
-                print(request_message)
                      
             # Send a request message to the tracker.
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
@@ -332,7 +331,10 @@ class Client:
                 
                 # Handle the respone based on the status code.
                 if status_code == "201":
-                    return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}"
+                    if self.state == "leecher":
+                        return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}"
+                    else:
+                        return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2 : response_message.find('seeder') + 6]}!{shell.RESET}"
                 elif status_code == "400":
                     return f"Error: {response_message[4:]}"
                 elif status_code == "403":
@@ -440,7 +442,6 @@ class Client:
         
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            #print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
         self.lock.release()

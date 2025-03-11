@@ -205,18 +205,18 @@ class Tracker:
                     'files': files if peer_type == "seeder" else []
                 }
                 # If the peer is a seeder, update the file_repository.
-            if peer_type == 'seeder' and files:
-                for file_info in files:
-                    filename = file_info.get("filename")
-                    if filename:
-                        if filename not in self.file_repository:
-                            self.file_repository[filename] = []
-                        self.file_repository[filename].append(peer_address)
-                        response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
-                    else:
-                        response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
-                else:
-                    response_message = "403 Forbidden: Client limit reached, registration denied."
+                if peer_type == 'seeder' and files:
+                    for file_info in files:
+                        filename = file_info.get("filename")
+                        if filename:
+                            if filename not in self.file_repository:
+                                self.file_repository[filename] = []
+                            self.file_repository[filename].append(peer_address)
+                            response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
+                        else:
+                            response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
+            else:
+                response_message = "403 Forbidden: Client limit reached, registration denied."
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
