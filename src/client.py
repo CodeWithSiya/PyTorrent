@@ -25,7 +25,7 @@ class Client:
     client = None
     username = "unknown"
     
-    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10, file_dir: str = "user/shared_files"):
+    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "seeder", tracker_timeout: int = 10, file_dir: str = "user/shared_files"):
         """
         Initialises the Client with the given host, UDP port, TCP port, state and tracker timeout.
         
@@ -47,7 +47,6 @@ class Client:
         
         # Dictionary to store file metadata, a variable for the shared data path and a Lock for thread safety.
         self.file_chunks = {}
-        self.file_dir = file_dir
         self.lock = Lock()
         
         # Ensure that the shared directory exists and create it if it does not exists.
@@ -64,9 +63,9 @@ class Client:
         self.tcp_socket.bind((self.host, self.tcp_port))
         self.tcp_socket.listen(5)
         
-        # # If the client is a seeder, scan the directory for files and prepare chunks.
-        # if self.state == "seeder":
-        #     self.scan_directory_for_files()
+        # If the client is a seeder, scan the directory for files and prepare chunks.
+        if self.state == "seeder":
+            self.scan_directory_for_files()
         
     def load_metadata(self) -> None:
         """
@@ -134,29 +133,31 @@ class Client:
                 
         return metadata
           
-    # def scan_directory_for_files(self) -> list:
-    #     """
-    #     Scans the specified directory for files and update the shared file metadata.
-        
-    #     :returns: A list for the files in the shared directory.
-    #     """
-    #     # Scanning through the specified directory for files to add into the metadata shared_files.json file.
-    #     for filename in os.listdir(self.file_dir):
-    #         file_path = os.path.join(self.file_dir, filename)
-    #         if os.path.isfile(file_path) and filename != "shared_files.json":
-    #             if filename not in self.file_chunks:
-    #                 print(f"Adding new file: {filename}")
-    #                 self.file_chunks[filename] = self.generate_file_metadata(file_path)
-    #             else:
-    #                 # Check if the file has been modified.
-    #                 existing_checksum = self.file_chunks[filename]["checksum"]
-    #                 new_checksum = self.generate_file_metadata(file_path)["checksum"]
-    #             if existing_checksum != new_checksum:
-    #                 print(f"Updating modified file: {filename}")
-    #                 self.file_chunks[filename] = self.generate_file_metadata(file_path)
-                    
-    # # Save updated metadata
-    # self.save_metadata()
+    # TODO: SCAN BEFORE REGISTERING
+    def scan_directory_for_files(self) -> list:
+        """
+        Scans the shared directory for files and updates metadata.
+        If a file is new or has been modified, its metadata is regenerated.
+        """
+        # Scanning through the specified directory for files to add into the metadata shared_files.json file.
+        for filename in os.listdir(self.file_dir):
+            file_path = os.path.join(self.file_dir, filename)
+            # Ensure the current item is a file that's not the shared metadata itself.
+            if os.path.isfile(file_path) and filename != "shared_files.json":
+                # If the file is not already tracked in file_chunks, add it.
+                if filename not in self.file_chunks:
+                    print(f"Adding new file: {filename}")
+                    self.file_chunks[filename] = self.generate_file_metadata(file_path)
+                else:
+                    # Check if the file has been modified or corrupted using checksums.
+                    existing_checksum = self.file_chunks[filename]["checksum"]
+                    new_checksum = self.generate_file_metadata(file_path)["checksum"]
+                    # Check if the file has been modified, and generate new file metadata.
+                    if existing_checksum != new_checksum:
+                        print(f"Updating modified file: {filename}")
+                        self.file_chunks[filename] = self.generate_file_metadata(file_path)           
+        # Save updated metadata
+        self.save_metadata()
       
     def welcoming_sequence(self) -> 'Client':
         """
@@ -423,7 +424,7 @@ def main() -> None:
         
     try:    
         # Instanciate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17380, 0)
+        client = Client(gethostbyname(gethostname()), 17381, 0)
         
         shell.clear_shell() 
         shell.print_logo()

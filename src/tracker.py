@@ -124,7 +124,7 @@ class Tracker:
                     
         # Checking the request type and processing accordingly.
         request_type = split_request[0]
-        if request_type == "REGISTER":
+        if request_type == "REGISTER {username}":
             self.handle_register_requests(split_request, peer_address)
         elif request_type == "LIST_ACTIVE":
             username = split_request[1] if len(split_request) == 2 else "unknown"
@@ -354,7 +354,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17380)
+    tracker = Tracker('137.158.160.145', 1738)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
