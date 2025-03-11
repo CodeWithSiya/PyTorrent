@@ -1,6 +1,7 @@
 import custom_shell as shell
 from threading import *
 from socket import *
+import hashlib
 import json
 import time 
 import os
@@ -16,11 +17,15 @@ class Client:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """
+    
+    # Store in array, how can I send chunks and store them in sequence?
+    # TODO: If there are files in the shared folder, then automatically register as a seeder then register as leecher when
+    
     # Defining a few class-wide variables for access throughout class.
     client = None
     username = "unknown"
     
-    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10):
+    def __init__(self, host: str, udp_port: int, tcp_port: int, state: str = "leecher", tracker_timeout: int = 10, file_dir: str = "user/shared_files"):
         """
         Initialises the Client with the given host, UDP port, TCP port, state and tracker timeout.
         
@@ -29,7 +34,7 @@ class Client:
         :param tcp_port: The TCP port on which the leecher listens for incoming file requests.
         "param state: The status of the client, either a 'seeder' or 'leecher' with default state being a leecher.
         :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
-        :param file_path: Path to the file to be shared.
+        :param file_path: Path to the directory containing files to be shared..
         """
         # Configuring the client's details.
         self.host = host
@@ -37,10 +42,19 @@ class Client:
         self.tcp_port = tcp_port
         self.state = state
         self.tracker_timeout = tracker_timeout
+        self.file_dir = file_dir
+        self.metadata_file = os.path.join(file_dir, "shared_files.json")
         
-        # Dictionary to store downloaded file chunks and a Lock for thread safety.
+        # Dictionary to store file metadata, a variable for the shared data path and a Lock for thread safety.
         self.file_chunks = {}
+        self.file_dir = file_dir
         self.lock = Lock()
+        
+        # Ensure that the shared directory exists and create it if it does not exists.
+        os.makedirs(self.file_dir, exist_ok = True)
+        
+        # Load or initialise metadata.
+        self.load_metadata()
         
         # Initialise the UDP socket for tracker communication.
         self.udp_socket = socket(AF_INET, SOCK_DGRAM)
@@ -49,11 +63,101 @@ class Client:
         self.tcp_socket = socket(AF_INET, SOCK_STREAM)
         self.tcp_socket.bind((self.host, self.tcp_port))
         self.tcp_socket.listen(5)
+        
+        # # If the client is a seeder, scan the directory for files and prepare chunks.
+        # if self.state == "seeder":
+        #     self.scan_directory_for_files()
+        
+    def load_metadata(self) -> None:
+        """
+        Load metadata from the shared_files.json file.
+        If the file doesn't exist, initialise an empty metadata dictionary.
+        """
+        # If the metadata file exists, open the file, read from it and load it into the file chunks dict.
+        with self.lock:
+            if os.path.exists(self.metadata_file):
+                with open(self.metadata_file, "r") as file:
+                    self.file_chunks = json.load(file).get("files", {})
+            else:
+                self.file_chunks = {}
+            
+    def save_metadata(self):
+        """
+        Save metadata to the shared_files.json file.
+        This ensures that changes to the shared files are stored.
+        """
+        with self.lock:
+            # Write the changes to a temporary file before the actual file to race conditions,
+            temp_file = self.metadata_file + ".tmp"
+            with open(temp_file, "w") as file:
+                json.dump({"files": self.file_chunks}, file, indent=4)
+            os.replace(temp_file, self.metadata_file)
+            
+    def generate_file_metadata(self, file_path: str, chunk_size: int = 1024 * 1024):
+        """
+        Generates metadata for a file, including SHA-256 checksums and chunk information. 
+        """
+        # Initialise the metadata dictionary for later use.
+        metadata = {
+            "size": os.path.getsize(file_path),  # Total file size.
+            "checksum": "",  # Checksum of the entire file.
+            "chunks": []  # List of chunks with their metadata.
+        }
+ 
+        # Create a SHA-256 hash object, open the file in binary mode and read it in chunks.
+        sha256 = hashlib.256()
+        with open(file_path, "rb") as file:
+            chunk = file.read(chunk_size)
+            while chunk:
+                sha256.update(chunk)
+                chunk = file.read(chunk_size)
+        # Store the final checksum hash in the metadata.
+        metadata["checksum"] = sha256.hexdigest()
+        
+        # Generate chunk metadata for the file.
+        with open(file_path, "rb") as file:
+            # Initialise the chunk ID and read the first chunk.
+            chunk_id = 0
+            chunk = file.read(chunk_size)
+            
+            # Loop through each chunk of the file.
+            while chunk:
+                # Add the current chunk's metadata.
+                metadata["chunks"].append({
+                    "id": chunk_id,
+                    "size": len(chunk),
+                    "checksum": hashlib.sha256(chunk).hexdigest()
+                })
+                # Move to the next chunk.
+                chunk_id += 1
+                chunk = file.read(chunk_size)
                 
-        # # Start the TCP server in a seperate thread.
-        # self.tcp_server_thread = Thread(target=self.start_tcp_server, daemon=True)
-        # self.tcp_server_thread.start()
-    
+        return metadata
+          
+    # def scan_directory_for_files(self) -> list:
+    #     """
+    #     Scans the specified directory for files and update the shared file metadata.
+        
+    #     :returns: A list for the files in the shared directory.
+    #     """
+    #     # Scanning through the specified directory for files to add into the metadata shared_files.json file.
+    #     for filename in os.listdir(self.file_dir):
+    #         file_path = os.path.join(self.file_dir, filename)
+    #         if os.path.isfile(file_path) and filename != "shared_files.json":
+    #             if filename not in self.file_chunks:
+    #                 print(f"Adding new file: {filename}")
+    #                 self.file_chunks[filename] = self.generate_file_metadata(file_path)
+    #             else:
+    #                 # Check if the file has been modified.
+    #                 existing_checksum = self.file_chunks[filename]["checksum"]
+    #                 new_checksum = self.generate_file_metadata(file_path)["checksum"]
+    #             if existing_checksum != new_checksum:
+    #                 print(f"Updating modified file: {filename}")
+    #                 self.file_chunks[filename] = self.generate_file_metadata(file_path)
+                    
+    # # Save updated metadata
+    # self.save_metadata()
+      
     def welcoming_sequence(self) -> 'Client':
         """
         Welcomes the user to the application and prompts for a username if it's their first time.
