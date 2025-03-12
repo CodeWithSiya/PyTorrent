@@ -187,13 +187,13 @@ class Tracker:
             
         self.register_peer(peer_address, peer_type, files, username) 
             
-    def register_peer(self, peer_address: tuple, peer_type: str, files: list, username: str = "unknown") -> None:
+    def register_peer(self, peer_address: tuple, peer_type: str, files: dict, username: str = "unknown") -> None:
         """
         Registers a new peer with the tracker if the peer limit is not reached.
         
         :param peer_address: The address of the peer that sent the request.
         :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
-        :param files: A list of files the peer has (if it's a seeder).
+        :param files: A dictionary of files the peer has (if it's a seeder).
         """
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
@@ -208,10 +208,14 @@ class Tracker:
                 if peer_type == 'seeder' and files:
                     for file_info in files:
                         filename = file_info.get("filename")
+                        filesize = file_info.get("size")
                         if filename:
                             if filename not in self.file_repository:
                                 self.file_repository[filename] = []
-                            self.file_repository[filename].append(peer_address)
+                            self.file_repository[filename].append({
+                                "peer_address": peer_address,
+                                "size": filesize
+                            })
                             response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
                         else:
                             response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
@@ -284,15 +288,21 @@ class Tracker:
         
     def list_available_files(self, peer_address: tuple) -> None:
         """
-        Obtains a list of the files available in the tracker file repository.
+        Obtains a list of the files available in the tracker file repository dictionary along with their sizes.
         
         :param peer_address: The address of the peer that sent the request.
         """
         with self.lock:
             # Obtain a list of the files available in the tracker file repository.
-            available_files = list(self.file_repository.keys())
+            available_files = {
+                filename: file_entries[0]["size"]
+                for filename, file_entries in self.file_repository.items() if file_entries
+            }
             
-        self.tracker_socket.sendto(str(available_files).encode(), peer_address)
+        # Convert dictionary to JSON string.
+        json_response = json.dumps(available_files)
+            
+        self.tracker_socket.sendto(json_response.encode(), peer_address)
         
     def remove_peer(self, peer_address: tuple) -> None:
         """
