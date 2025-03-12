@@ -389,8 +389,7 @@ class Client:
                     print(f"- IP Address: {ip}")
                     print(f"- Port: {port}")
                     print(f"- Username: {seeder['username']}")
-                    print(f"- Status: {emoji} Active Seeder\n")
-    
+                    print(f"- Status: {emoji} Active Seeder")
         except Exception as e:
             print(f"Error querying the tracker for active_peers: {e}")
             
@@ -404,14 +403,38 @@ class Client:
         try:
             # Send a request message to the tracker.
             request_message = "LIST_FILES"
+            
+            # Acquire the lock for thread safety.
+            self.lock.acquire()
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            shell.type_writer_effect(f"{shell.WHITE}Fetching the list of available files for you... Please hold on!{shell.RESET}", 0.04)
             
-            # Receive a response message from the tracker
-            response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+            # Receive a response message from the tracker.
+            response_message, peer_address = self.udp_socket.recvfrom(4096)  # Increase buffer size
+            available_files = json.loads(response_message.decode())
+
+            shell.type_writer_effect(f"{shell.BRIGHT_GREEN}The list of available files has been successfully retrieved!{shell.RESET}", 0.04)
+
+            # Print information about available files in a readable way.
+            if not available_files:
+                print("📂 Available Files:\n- No files currently available. 😞")
+            else:
+                print("📂 Available Files:")
+                for filename, size in available_files.items():
+                    emoji = shell.get_random_emoji()
+                    print(f"- Filename: {filename}")
+                    print(f"- Size: {size / (1024 * 1024):.2f} MB")
+                    print(f"- Status: {emoji} Available")
+        
+        except json.JSONDecodeError:
+            print("Error: Received an invalid JSON response from the tracker.")
         except Exception as e:
-            print(f"Error querying the tracker for files: {e}")
-            
+            print(f"Error querying the tracker for available files: {e}")
+        
+        finally:
+            # Release the lock after execution.
+            self.lock.release()
+
     def query_tracker_for_peers(self, filename: str) -> None:
         """
         Queries the tracker for the a list of peers (seeders) that have a specified file.
@@ -427,7 +450,7 @@ class Client:
             response_message, peer_address = self.udp_socket.recvfrom(1024)
             print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
         except Exception as e:
-            print(f"Error querying the tracker for available peers: {e}")\
+            print(f"Error querying the tracker for available peers: {e}")
     
     def send_keep_alive(self) -> None:
         """
