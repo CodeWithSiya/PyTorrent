@@ -259,7 +259,7 @@ class Tracker:
                     'status': "200 OK",
                     'filename': filename,
                     'size': seeders[0]["size"], # double check.
-                    'checksum': seeders[0]['checksum']
+                    'checksum': seeders[0]['checksum'],
                     'seeders': [seeder['peer_address'] for seeder in seeders]
                 }
             else:
@@ -320,7 +320,6 @@ class Tracker:
         Removes a peer from the active list when it disconnects.
         """
         with self.lock:
-            # Only remove the peer from the network if found in active peers.
             if peer_address in self.active_peers:
                 peer_info = self.active_peers[peer_address]
 
@@ -328,8 +327,12 @@ class Tracker:
                 if peer_info['type'] == 'seeder':
                     for file_info in peer_info.get('files', []): 
                         filename = file_info['filename']
-                        if filename in self.file_repository and peer_address in self.file_repository[filename]:
-                            self.file_repository[filename].remove(peer_address)
+                        if filename in self.file_repository:
+                            # Find and remove the specific peer's entry.
+                            self.file_repository[filename] = [
+                                entry for entry in self.file_repository[filename]
+                                if entry['peer_address'] != peer_address
+                            ]
                             # If no more seeders for the file, remove the file from the repository.
                             if not self.file_repository[filename]:
                                 del self.file_repository[filename]
@@ -359,20 +362,25 @@ class Tracker:
                         if self.active_peers[peer]['type'] == 'seeder':
                             for file_info in self.active_peers[peer]['files']: 
                                 filename = file_info['filename'] 
-                                if filename in self.file_repository and peer in self.file_repository[filename]:
-                                    self.file_repository[filename].remove(peer)
+                                if filename in self.file_repository:
+                                    # Find and remove the specific peer's entry
+                                    self.file_repository[filename] = [
+                                        entry for entry in self.file_repository[filename]
+                                        if entry['peer_address'] != peer
+                                    ]
                                     # If no more seeders for the file, remove the file from the repository.
                                     if not self.file_repository[filename]:
                                         del self.file_repository[filename]
-                                            
+                                                
                         # Remove the inactive peer from active_peers.
                         del self.active_peers[peer]    
-                          
+                            
                         # Log the cleanup action.
                         formatted_date = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
                         print(f"{shell.BRIGHT_MAGENTA}Clean-up performed at: {formatted_date}{shell.RESET}")
                         print(f"{shell.BRIGHT_RED}Removed inactive peer: {peer}{shell.RESET}")
-                     
+                        print(self.file_repository)
+               
     def keep_peer_alive(self, peer_address: tuple, username: str = "unknown"):
         """
         Updates the last activity time of a peer to keep it active in the tracker.
@@ -410,7 +418,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17390)
+    tracker = Tracker('137.158.160.145', 17382)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
