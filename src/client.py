@@ -1,6 +1,7 @@
 import custom_shell as shell
 from threading import *
 from socket import *
+import selectors
 import hashlib
 import select 
 import json
@@ -61,12 +62,12 @@ class Client:
         self.tcp_socket.listen(5)
         
         # Use a selector to manage multiple connections using multiplexing.
-        #self.selector = select.DefaultSelector()
-        #self.selector.register(self.tcp_socket, select.EVENT_READ, self.accepted_connection)
+        self.selector = selectors.DefaultSelector()
+        self.selector.register(self.tcp_socket, selectors.EVENT_READ, self.accepted_connection)
         
         # Start a thread to handle incoming TCP connections.
-        #self.tcp_thread = Thread(target=self.handle_tcp_connection, daemon=True)
-        #self.tcp_thread.start()
+        self.tcp_thread = Thread(target=self.handle_tcp_connection, daemon=True)
+        self.tcp_thread.start()
 
         # Scan the shared directory for files and add it to the shared_file.json meta file.
         self.scan_directory_for_files()
@@ -85,26 +86,127 @@ class Client:
             for key, _ in events:
                 # Gets and calls the callback function associated with the event.
                 callback = key.data
-                callback(key.fileobs)
+                callback(key.fileobj)
                 
-    def handle_tcp_connection(self, connection) -> None:
+    def handle_tcp_connection(self, peer_socket: socket):
         """
-        Handles a single TCP connection from a peer.
+        Handles incoming TCP connections from peers requesting file chunks or metadata.
         """
         try:
             # Receive the request from the peer.
-            request = connection.recv(4096).decode('utf-8')
+            request = peer_socket.recv(1024).decode('utf-8')
             
-            if request == "DOWNLOAD":
-                # Send the file to the peer.
-                self.send_file(connection)
+            if request.startswith("REQUEST_CHUNK"):
+                # Parse the request to get the filename and chunk ID.
+                _, filename, chunk_id = request.split()
+                chunk_id = int(chunk_id)
+                
+                # Retrieve the requested chunk.
+                chunk_data = self.get_chunk(filename, chunk_id)
+                
+                if chunk_data:
+                    # Send the chunk data to the peer.
+                    peer_socket.sendall(chunk_data)
+                else:
+                    # Send an error message if the chunk is not found.
+                    peer_socket.sendall(b"CHUNK_NOT_FOUND")
             else:
-                print(f"Invalid request from {conn.getpeername()}: {request}")
+                print(f"Invalid request from {peer_socket.getpeername()}: {request}")
         except Exception as e:
-            logging.error(f"Error handling TCP connection: {e}")
+            print(f"Error handling TCP connection: {e}")
         finally:
-            self.selector.unregister(connection)
-            connection.close()
+            self.selector.unregister(peer_socket)
+            peer_socket.close()
+     
+    def accepted_connection(self, sock: socket):
+        """
+        Accepts a new connection and registers it with the selector.
+        """
+        connection, address = sock.accept()
+        print(f"New connection from {address}")
+        connection.setblocking(False)
+        self.selector.register(connection, selectors.EVENT_READ, self.handle_tcp_connection)       
+        
+    #TODO: Write to a seperate .tmp file before writing to the actual file.
+    def download_file(self, filename: str, seeder_address: tuple, output_dir: str = "user/downloads"):
+        """
+        Downloads a file from a seeder by requesting chunks one by one.
+        """
+        # Ensure the output directory exists.
+        os.makedirs(output_dir, exist_ok = True)
+        
+        # Create the output file path.
+        output_file_path = os.path.join(output_dir, filename)
+        
+        # Open the output file in binary write mode.
+        with open(output_file_path, "wb") as output_file:
+            # Initialise the chunk id counter. 
+            chunk_id = 0
+            while True:
+                # Request the chunk from the seeder.
+                chunk_data = self.request_chunk(filename, chunk_id, seeder_address)
+                
+                # If no more chunks are available, break the loop.
+                if not chunk_data: break
+                
+                # Write the chunk data to the output file.
+                output_file.write(chunk_data)
+                chunk_id += 1
+                
+        print(f"Download complete: {output_file_path}")
+    
+    # TODO: Implement chunk verification using checksums and stuff.
+    def request_chunk(self, filename: str, chunk_id: int, seeder_address: tuple) -> bytes:
+        """
+        Requests a specific chunk from a seeder.
+        """
+        try:
+            # Create a TCP socket and connect to the seeder.
+            sock = socket(AF_INET, SOCK_STREAM)
+            sock.conenct(seeder_address)
+            
+            # Send the request for the chunk.
+            request_message = f"REQUEST_CHUNK {filename} {chunk_id}"
+            sock.sendall(request_message.encode('utf-8'))
+            
+            # Receive the chunk data.
+            chunk_data = sock.recv(1024 * 1024)
+            
+            if chunk_data == b"CHUNK_NOT_FOUND":
+                print(f"Chunk {chunk_id} not found for file {filename}.")
+                return None
+            
+            return chunk_data
+        except Exception as e:
+            print(f"Error requesting chunk {chunk_id} from {seeder_address}: {e}")
+            return None
+        finally:
+            sock.close()
+    
+    def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
+        """
+        Retrieves a specific chunk of a file from disk.
+        
+        :param filename: Name of the file.
+        :param chunk_id: ID of the chunk to retrieve.
+        :param chunk_size: Size of each chunk in bytes (default: 1 MB).
+        
+        :return: The chunk data as bytes, or None if the chunk is not found or an error occurs.
+        """
+        # Check if the file exists in the file_chunks dictionary.
+        if filename not in self.file_chunks:
+            print(f"File '{filename} not found in shared files.")
+            return None
+        
+        # Get the full file path.
+        file_path = os.path.join(self.file_dir, filename) 
+        try:
+            with open(file_path, "rb") as file:
+                file.seek(chunk_id * chunk_size)  # Move to the start of the chunk.
+                return file.read(chunk_size)  # Read and return the chunk data.
+        except Exception as e:
+            print(f"Error reading chunk {chunk_id} from file '{filename}': {e}")
+            return None
             
     def load_metadata(self) -> None:
         """
@@ -197,46 +299,6 @@ class Client:
                         self.file_chunks[filename] = self.generate_file_metadata(file_path)           
         # Save updated metadata
         self.save_metadata()
-        
-    def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
-        """
-        Retrieves a specific chunk of a file from disk.
-        
-        :param filename: Name of the file.
-        :param chunk_id: ID of the chunk to retrieve.
-        :param chunk_size: Size of each chunk in bytes (default: 1 MB).
-        
-        :return: The chunk data as bytes, or None if the chunk is not found or an error occurs.
-        """
-        # Check if the file exists in the file_chunks dictionary.
-        if filename not in self.file_chunks:
-            print(f"File '{filename} not found in shared files.")
-            return None
-        
-        # Get the full file path.
-        file_path = os.path.join(self.file_dir, filename) 
-        try:
-            with open(file_path, "rb") as file:
-                file.seek(chunk_id * chunk_size)  # Move to the start of the chunk.
-                return file.read(chunk_size)  # Read and return the chunk data.
-        except Exception as e:
-            print(f"Error reading chunk {chunk_id} from file '{filename}': {e}")
-            return None
-        
-    def handle_tcp_connection(self, peer_socket: socket):
-        """
-        Handles incoming TCP connections from peers requesting file chunks or metadata.
-        """
-        
-    def download_file(self, filename:str, seeder_address: tuple, output_dir: str = "user/downloads") -> None:
-        """
-        Downloads a file from a seeder by requesting chunks one by one.
-        """     
-        
-    def request_chunk(self, filename: str, chunk_id: int, seeder_address: tuple) -> bytes:
-        """
-        Requests a specific chunk from a seeder.
-        """
       
     def welcoming_sequence(self) -> None:
         """
@@ -312,10 +374,10 @@ class Client:
             # If shared_files.json exists and has data, register as seeder else register as a leecher.
             if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
                 self.state = "seeder"
-                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have shared files. Registering as a seeder!{shell.RESET}")
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have files available for sharing. Registering as a seeder!{shell.RESET}")
             else:
                 self.state = "leecher"
-                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have no shared files. Registering as a leecher!{shell.RESET}")
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have no files available for sharing. Registering as a leecher!{shell.RESET}")
          
             # Register this client with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
@@ -388,8 +450,31 @@ class Client:
                 # Tracker does not respond within the timeout time.
                 return f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later!{shell.RESET}"
         except Exception as e:
-            print(f"Error registering with tracker: {e}")       
+            print(f"Error registering with tracker: {e}")
+    
+    def disconnect_from_tracker(self) -> None:
+        """
+        Gracefully disconnects from the tracker.
+        """  
+        global username
+        try:
+            # Send a request message to the tracker.
+            request_message = "DISCONNECT {username}"
             
+            # Aquire the lock for thread safety.
+            self.lock.acquire()
+            
+            # Send the message to the tracker.
+            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            shell.type_writer_effect(f"{shell.WHITE}Disconnecting from the tracker ... Please hold on!{shell.RESET}", 0.04)
+            
+            # Retrieve the response from the tracker.
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
+            print(response_message.decode())
+                 
+        except Exception as e:
+            print(f"Error disconnecting from the tracker: {e}")
+                        
     def get_active_peer_list(self) -> None:
         """
         Queries the tracker for a list of active peers in the network.
@@ -547,7 +632,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17380, 0)
+        client = Client(gethostbyname(gethostname()), 17385, 0)
         
         shell.clear_shell() 
         shell.print_logo()
@@ -574,15 +659,23 @@ def main() -> None:
                     elif choice == 2:
                         client.get_available_files()
                         shell.print_line()
+                    elif choice == 5:
+                        client.disconnect_from_tracker()
+                        shell.print_line()
                     else:
                         print("Invalid choice, please try again.")
+                        shell.print_line()
                 except ValueError:
                     print("Please enter a valid number, 'help' or 'clear'.")
+                    shell.print_line()
             elif choice.lower() == 'help':
                 shell.print_line()
+                if username:
+                    shell.type_writer_effect(f"Welcome back, {username} ⚡")
+                else:
+                    shell.type_writer_effect("Welcome back! (No username found in config file...🫤)")
                 shell.print_menu()
             else:
-                # shell.print_line()
                 shell.reset_shell()
      
     except Exception as e:

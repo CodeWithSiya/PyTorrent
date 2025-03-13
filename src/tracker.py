@@ -132,7 +132,8 @@ class Tracker:
         elif request_type == "LIST_FILES":
             self.list_available_files(peer_address)
         elif request_type == "DISCONNECT":
-            self.remove_peer(peer_address)
+            username = split_request[1] if len(split_request) == 2 else "unknown"
+            self.remove_peer(peer_address, username)
         elif request_type == "KEEP_ALIVE":
             username = split_request[1] if len(split_request) == 2 else "unknown"
             self.keep_peer_alive(peer_address, username)
@@ -304,26 +305,33 @@ class Tracker:
             
         self.tracker_socket.sendto(json_response.encode(), peer_address)
         
-    def remove_peer(self, peer_address: tuple) -> None:
+    def remove_peer(self, peer_address: tuple, username: str = "unknown") -> None:
         """
         Removes a peer from the active list when it disconnects.
         """
         with self.lock:
             # Only remove the peer from the network if found in active peers.
             if peer_address in self.active_peers:
-                # Remove the peer from the file repository for each file it had.
-                if self.active_peers[peer_address]['type'] == 'seeder':
-                    for file in self.active_peers[peer_address]['files']:
-                        if file in self.file_repository and peer_address in self.file_repository[file]:
-                            self.file_repository[file].remove(peer_address)
-                            # If no more seeders, remove the file from the repository.
-                            if not self.file_repository[file]:
-                                del self.file_repository[file]
+                peer_info = self.active_peers[peer_address]
+
+                # If the peer is a seeder, remove its files from the file repository.
+                if peer_info['type'] == 'seeder':
+                    for file_info in peer_info.get('files', []): 
+                        filename = file_info['filename']
+                        if filename in self.file_repository and peer_address in self.file_repository[filename]:
+                            self.file_repository[filename].remove(peer_address)
+                            # If no more seeders for the file, remove the file from the repository.
+                            if not self.file_repository[filename]:
+                                del self.file_repository[filename]
+
+                # Remove peer from active peers
                 del self.active_peers[peer_address]
-                response_message = f"200 OK: Peer {peer_address} successfully removed."
+                response_message = f"200 OK: Client '{username}' with address {peer_address} successfully removed."
+                print(f"{shell.BRIGHT_RED}{response_message}{shell.RESET}")
             else:
                 response_message = f"403 Forbidden: Peer {peer_address} not found."
-                
+                print(f"{shell.BRIGHT_RED}{response_message}{shell.RESET}")
+
         self.tracker_socket.sendto(response_message.encode(), peer_address)
             
     def remove_inactive_peers(self) -> None:
@@ -392,7 +400,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17380)
+    tracker = Tracker('137.158.160.145', 17385)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
