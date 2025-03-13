@@ -2,8 +2,9 @@ import custom_shell as shell
 from threading import *
 from socket import *
 import hashlib
+import select 
 import json
-import time 
+import time
 import os
 
 class Client:
@@ -28,7 +29,7 @@ class Client:
         :param host: The host address of the seeder.
         :param udp_port: The UDP port on which the tracker listens for incoming connections.
         :param tcp_port: The TCP port on which the leecher listens for incoming file requests.
-        "param state: The status of the client, either a 'seeder' or 'leecher' with default state being a leecher.
+        :param state: The status of the client, either a 'seeder' or 'leecher' with default state being a leecher.
         :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
         :param file_path: Path to the directory containing files to be shared..
         """
@@ -59,9 +60,52 @@ class Client:
         self.tcp_socket.bind((self.host, self.tcp_port))
         self.tcp_socket.listen(5)
         
-        # if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
+        # Use a selector to manage multiple connections using multiplexing.
+        #self.selector = select.DefaultSelector()
+        #self.selector.register(self.tcp_socket, select.EVENT_READ, self.accepted_connection)
+        
+        # Start a thread to handle incoming TCP connections.
+        #self.tcp_thread = Thread(target=self.handle_tcp_connection, daemon=True)
+        #self.tcp_thread.start()
+
+        # Scan the shared directory for files and add it to the shared_file.json meta file.
         self.scan_directory_for_files()
         
+    def handle_connections(self) -> None:
+        """
+        Handles incoming TCP connections using a selector.
+        
+        Notes: 
+        - The callback is a function that should be executed when the event occurs on this socket.
+        - The callback file object is the socket in this case.
+        """
+        while True:
+            # Waits for new events (new connections & data available to read) on registered sockets.
+            events = self.selector.select()
+            for key, _ in events:
+                # Gets and calls the callback function associated with the event.
+                callback = key.data
+                callback(key.fileobs)
+                
+    def handle_tcp_connection(self, connection) -> None:
+        """
+        Handles a single TCP connection from a peer.
+        """
+        try:
+            # Receive the request from the peer.
+            request = connection.recv(4096).decode('utf-8')
+            
+            if request == "DOWNLOAD":
+                # Send the file to the peer.
+                self.send_file(connection)
+            else:
+                print(f"Invalid request from {conn.getpeername()}: {request}")
+        except Exception as e:
+            logging.error(f"Error handling TCP connection: {e}")
+        finally:
+            self.selector.unregister(connection)
+            connection.close()
+            
     def load_metadata(self) -> None:
         """
         Load metadata from the shared_files.json file.
@@ -127,8 +171,7 @@ class Client:
                 chunk = file.read(chunk_size)
                 
         return metadata
-          
-    # TODO: SCAN BEFORE REGISTERING
+
     # TODO: Add functionality for deleted files.
     def scan_directory_for_files(self) -> list:
         """
@@ -324,7 +367,7 @@ class Client:
             try:
                 # Receive a response message from the tracker.
                 response_message, peer_address = self.udp_socket.recvfrom(1024)
-                response_message = response_message.decode()
+                response_message = response_message.decode('utf-8')
                 
                 # Extract the status code (first three characters) from the response.
                 status_code = response_message[:3]
@@ -363,10 +406,10 @@ class Client:
             
             # Receive a response message from the tracker with active users and decode that message.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            active_users = json.loads(response_message.decode())
+            active_users = json.loads(response_message.decode('utf-8'))
             shell.type_writer_effect(f"{shell.BRIGHT_GREEN}The list of active peers has been successfully retrieved!{shell.RESET}", 0.04)
     
-            # Print information about the a leechers in a readable way.
+            # Print information about the leechers in a readable way.
             if not active_users["leechers"]:
                 print("⚡ Leechers:\n- No leechers currently active. 😞\n")
             else:
@@ -382,14 +425,14 @@ class Client:
                 print(f"🚀 Seeders:\n- No seeders currently active. 😞")
             else:
                 print(f"🚀 Seeders:")
-                # Print information about our seeders.
+                # Print information about the seeders in a readable way.
                 for seeder in active_users["seeders"]:
                     ip, port = seeder['peer']
                     emoji = shell.get_random_emoji() 
                     print(f"- IP Address: {ip}")
                     print(f"- Port: {port}")
                     print(f"- Username: {seeder['username']}")
-                    print(f"- Status: {emoji} Active Seeder")
+                    print(f"- Status: {emoji} Active Seeder\n")
         except Exception as e:
             print(f"Error querying the tracker for active_peers: {e}")
             
@@ -411,7 +454,7 @@ class Client:
             
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(4096)  # Increase buffer size
-            available_files = json.loads(response_message.decode())
+            available_files = json.loads(response_message.decode('utf-8'))
 
             shell.type_writer_effect(f"{shell.BRIGHT_GREEN}The list of available files has been successfully retrieved!{shell.RESET}", 0.04)
 
@@ -419,12 +462,12 @@ class Client:
             if not available_files:
                 print("📂 Available Files:\n- No files currently available. 😞")
             else:
-                print("📂 Available Files:")
+                print("📂 Available Files:\n")
                 for filename, size in available_files.items():
                     emoji = shell.get_random_emoji()
                     print(f"- Filename: {filename}")
                     print(f"- Size: {size / (1024 * 1024):.2f} MB")
-                    print(f"- Status: {emoji} Available")
+                    print(f"- Status: {emoji} Available\n")
         
         except json.JSONDecodeError:
             print("Error: Received an invalid JSON response from the tracker.")
@@ -448,7 +491,7 @@ class Client:
         
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+            print(f"Tracker response for request from {peer_address}: {response_message.decode('utf-8')}")
         except Exception as e:
             print(f"Error querying the tracker for available peers: {e}")
     
@@ -490,7 +533,7 @@ class Client:
         
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode()}")
+            print(f"Tracker response for request from {peer_address}: {response_message.decode('utf-8')}")
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
             
@@ -504,7 +547,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17385, 0)
+        client = Client(gethostbyname(gethostname()), 17380, 0)
         
         shell.clear_shell() 
         shell.print_logo()
@@ -521,21 +564,26 @@ def main() -> None:
             # Obtain the users input for their selected option.
             choice = input("Please input the number of your selected option:\n")
             
-            # Process the users request -> Add a clear command.
-            if choice.lower() != 'help':
+            # Process the users request.
+            if choice.lower() != 'help' and choice.lower() != 'clear':
                 try:
                     choice = int(choice)
                     if choice == 1:
                         client.get_active_peer_list()
+                        shell.print_line()
                     elif choice == 2:
                         client.get_available_files()
+                        shell.print_line()
                     else:
                         print("Invalid choice, please try again.")
                 except ValueError:
-                    print("Please enter a valid number or 'help'.")
-            else:
+                    print("Please enter a valid number, 'help' or 'clear'.")
+            elif choice.lower() == 'help':
+                shell.print_line()
                 shell.print_menu()
-            shell.print_line()
+            else:
+                # shell.print_line()
+                shell.reset_shell()
      
     except Exception as e:
         print(e)
