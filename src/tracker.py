@@ -210,6 +210,7 @@ class Tracker:
                     for file_info in files:
                         filename = file_info.get("filename")
                         filesize = file_info.get("size")
+                        checksum = file_info.get("checksum")
                         if filename:
                             if filename not in self.file_repository:
                                 self.file_repository[filename] = []
@@ -293,6 +294,7 @@ class Tracker:
         
         :param peer_address: The address of the peer that sent the request.
         """
+        print()
         with self.lock:
             # Obtain a list of the files available in the tracker file repository.
             available_files = {
@@ -326,11 +328,11 @@ class Tracker:
 
                 # Remove peer from active peers
                 del self.active_peers[peer_address]
-                response_message = f"200 OK: Client '{username}' with address {peer_address} successfully removed."
+                response_message = f"200 OK: Client '{username}' with address {peer_address} successfully disconnected from the tracker"
                 print(f"{shell.BRIGHT_RED}{response_message}{shell.RESET}")
             else:
                 response_message = f"403 Forbidden: Peer {peer_address} not found."
-                print(f"{shell.BRIGHT_RED}{response_message}{shell.RESET}")
+                print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
 
         self.tracker_socket.sendto(response_message.encode(), peer_address)
             
@@ -378,7 +380,7 @@ class Tracker:
             # Update the peer's last activity time to avoid time out if found in the active list.
             if peer_address in self.active_peers:
                 self.active_peers[peer_address]['last_activity'] = time.time()
-                response_message = f"200 OK: Successfully updated last activity time for client '{username}' at address {peer_address}."
+                response_message = f"200 OK: Successfully updated last activity time for client '{username}' with address {peer_address}."
             else:
                 response_message = f"403 Forbidden: Peer not found in active list: {peer_address}"
                   
@@ -400,7 +402,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17385)
+    tracker = Tracker('137.158.160.145', 17390)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)

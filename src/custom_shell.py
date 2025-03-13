@@ -173,3 +173,10 @@ def hit_any_key_to_continue() -> None:
     """
     type_writer_effect(f"\n{BRIGHT_YELLOW}HIT ANY KEY TO CONTINUE...🙂‍{RESET}")
     pause("")
+    
+def hit_any_key_to_exit() -> None:
+    """
+    Waits for the user to press any key before continuing.
+    """
+    type_writer_effect(f"\n{BRIGHT_YELLOW}HIT ANY KEY TO EXIT PYTORRENT...🙂‍{RESET}")
+    pause("")

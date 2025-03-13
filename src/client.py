@@ -19,6 +19,7 @@ class Client:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """
+    # TODO:Properly add checks and stuff.
     # Defining a few class-wide variables for access throughout class.
     client = None
     username = "unknown"
@@ -123,7 +124,7 @@ class Client:
         Accepts a new connection and registers it with the selector.
         """
         connection, address = server_socket.accept()
-        print(f"Accepted connection from {peer_address}")
+        print(f"Accepted connection from {connection}")
         connection.setblocking(False)
         self.selector.register(connection, selectors.EVENT_READ, self.handle_tcp_connection)       
         
@@ -163,7 +164,7 @@ class Client:
         try:
             # Create a TCP socket and connect to the seeder.
             sock = socket(AF_INET, SOCK_STREAM)
-            sock.conenct(seeder_address)
+            sock.connect(seeder_address)
             
             # Send the request for the chunk.
             request_message = f"REQUEST_CHUNK {filename} {chunk_id}"
@@ -459,7 +460,7 @@ class Client:
         global username
         try:
             # Send a request message to the tracker.
-            request_message = "DISCONNECT {username}"
+            request_message = f"DISCONNECT {username}"
             
             # Aquire the lock for thread safety.
             self.lock.acquire()
@@ -468,12 +469,25 @@ class Client:
             self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
             shell.type_writer_effect(f"{shell.WHITE}Disconnecting from the tracker ... Please hold on!{shell.RESET}", 0.04)
             
-            # Retrieve the response from the tracker.
+            # Retrieve and decode the response from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(response_message.decode())
-                 
+            response_message = response_message.decode()
+            
+            # Extract the status code (first three characters) from the response.
+            status_code = response_message[:3]
+                
+            # Handle the respone based on the status code.
+            if status_code == "200":
+                shell.type_writer_effect(f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}")
+            elif status_code == "400":
+                return f"Error: {response_message[4:]}"
+            else:
+                return f"Unexpected response: {response_message}"
+                    
         except Exception as e:
             print(f"Error disconnecting from the tracker: {e}")
+            
+        self.lock.release()
                         
     def get_active_peer_list(self) -> None:
         """
@@ -632,7 +646,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17385, 0)
+        client = Client(gethostbyname(gethostname()), 17390, 0)
         
         shell.clear_shell() 
         shell.print_logo()
@@ -659,9 +673,12 @@ def main() -> None:
                     elif choice == 2:
                         client.get_available_files()
                         shell.print_line()
+                    elif choice == 3:
+                        client.handle_downloads()
+                        shell.print_line()
                     elif choice == 5:
                         client.disconnect_from_tracker()
-                        shell.print_line()
+                        break
                     else:
                         print("Invalid choice, please try again.")
                         shell.print_line()
@@ -677,7 +694,10 @@ def main() -> None:
                 shell.print_menu()
             else:
                 shell.reset_shell()
-     
+                
+        shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Thank you for using PyTorrent! We hope to see you again soon :) {shell.RESET}", 0.05)
+        shell.hit_any_key_to_exit()
+        shell.clear_shell()
     except Exception as e:
         print(e)
     
