@@ -66,7 +66,7 @@ class Client:
         self.selector.register(self.tcp_socket, selectors.EVENT_READ, self.accepted_connection)
         
         # Start a thread to handle incoming TCP connections.
-        self.tcp_thread = Thread(target=self.handle_tcp_connection, daemon=True)
+        self.tcp_thread = Thread(target=self.handle_connections, daemon=True)
         self.tcp_thread.start()
 
         # Scan the shared directory for files and add it to the shared_file.json meta file.
@@ -118,12 +118,12 @@ class Client:
             self.selector.unregister(peer_socket)
             peer_socket.close()
      
-    def accepted_connection(self, sock: socket):
+    def accepted_connection(self, server_socket: socket):
         """
         Accepts a new connection and registers it with the selector.
         """
-        connection, address = sock.accept()
-        print(f"New connection from {address}")
+        connection, address = server_socket.accept()
+        print(f"Accepted connection from {peer_address}")
         connection.setblocking(False)
         self.selector.register(connection, selectors.EVENT_READ, self.handle_tcp_connection)       
         
