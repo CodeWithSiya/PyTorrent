@@ -216,7 +216,8 @@ class Tracker:
                                 self.file_repository[filename] = []
                             self.file_repository[filename].append({
                                 "peer_address": peer_address,
-                                "size": filesize
+                                "size": filesize,
+                                "checksum": checksum
                             })
                             response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
                         else:
@@ -253,11 +254,19 @@ class Tracker:
             if filename in self.file_repository:
                 # Get the list of seeders for the file.
                 seeders = self.file_repository[filename]
-                response_message = f"200 OK: Peers with {filename}: {seeders}"
+                # Fix, do the mixture thing.
+                response_message = {
+                    'status': "200 OK",
+                    'filename': filename,
+                    'size': seeders[0]["size"], # double check.
+                    'checksum': seeders[0]['checksum']
+                    'seeders': [seeder['peer_address'] for seeder in seeders]
+                }
             else:
+                # Fix for consistency.
                 response_message  = f"404 Not Found: File not available: {filename}"
                       
-        self.tracker_socket.sendto(response_message.encode(), peer_address)
+        self.tracker_socket.sendto(json.dumps(response_message).encode(), peer_address)
                 
     def list_active_peers(self, peer_address: tuple, username: str = "unknown") -> None:
         """
@@ -294,7 +303,6 @@ class Tracker:
         
         :param peer_address: The address of the peer that sent the request.
         """
-        print()
         with self.lock:
             # Obtain a list of the files available in the tracker file repository.
             available_files = {

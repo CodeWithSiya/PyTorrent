@@ -413,7 +413,8 @@ class Client:
                     "files": [
                         {
                             "filename": filename, 
-                            "size": metadata["size"]
+                            "size": metadata["size"],
+                            "checksum": metadata["checksum"]
                         }
                         for filename, metadata in self.file_chunks.items()
                     ]
@@ -590,7 +591,13 @@ class Client:
         
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
-            print(f"Tracker response for request from {peer_address}: {response_message.decode('utf-8')}")
+            response = json.loads(response_message.decode('utf-8'))
+            
+            if response.get("status") == "200 OK":
+                return response
+            else:
+                print(f"Error in querying for peers.")
+                return None
         except Exception as e:
             print(f"Error querying the tracker for available peers: {e}")
     
