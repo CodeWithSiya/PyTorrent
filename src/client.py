@@ -125,6 +125,38 @@ class Client:
             shell.type_writer_effect("\nYou're all set to start using Pytorrent again 💯")
             shell.type_writer_effect("\nType 'help' at any time to see a list of available commands.")
             shell.hit_any_key_to_continue()
+            
+    def change_username(self):
+        """
+        Changes the username of the client. Also allows them to reset their data
+        """
+        
+        print("Leave you new username empty if you would like to delete your data 🗑️")
+        
+        new_username = input("Enter your new username: ").strip()
+        
+        
+        try:
+            with open("config/config.txt", "w") as file:
+                if new_username:
+                    file.write(f"username={new_username}")
+                    print(f"Username successfully changed to '{new_username}'")
+                else:
+                    final_prompt = input("You are about reset your data!!! This cannot be undone!!! Are you sure? (Y/N)\n")
+                    if final_prompt.lower() == "y":
+                        file.write(f"username=")
+                        print("Username is reset (I don't know who you are now 💀)")
+                    elif final_prompt.lower() == "n":
+                        print("That was close 💀")
+                        print("Returning to main menu...")
+                    else:
+                        print("Incorrect input❌")
+                        print("Returning to main menu...")
+                        
+        except IOError as e:
+            print("Erorr while trying to change username in config file")
+            
+            
                            
     def register_with_tracker(self, files: list = []) -> str:
         """
@@ -274,6 +306,8 @@ def main() -> None:
         
         if (choice == 1):
             client.get_active_peer_list()
+        if (choice == 4):
+            client.change_username()
     except Exception as e:
         print(e)
     
