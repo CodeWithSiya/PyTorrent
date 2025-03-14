@@ -392,7 +392,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17385)
+    tracker = Tracker(gethostbyname(gethostname()), 17385)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)

@@ -494,6 +494,45 @@ class Client:
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
             
+    def change_username(self):
+        """
+        Changes the username of the client. Also allows them to reset their data
+        """
+        
+        shell.type_writer_effect(f"{shell.WHITE}Changing your Username...{shell.RESET}", 0.04)
+        print("")
+        shell.type_writer_effect(f"{shell.BLUE}Leave your new Username empty if you would like to delete your data 🗑️{shell.RESET}", 0.04)
+        print("")
+        
+        shell.type_writer_effect(f"{shell.WHITE}Enter your new username:{shell.RESET}", 0.04)
+        
+        new_username = input().strip()
+        
+        
+        try:
+            with open("config/config.txt", "w") as file:
+                if new_username:
+                    file.write(f"username={new_username}")
+                    shell.type_writer_effect(f"{shell.GREEN}Username successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                else:
+                    shell.type_writer_effect(f"{shell.RED}You are about reset your data!!! This cannot be undone!!! Are you sure? (Y/N){shell.RESET}", 0.04)
+                    
+                    final_prompt = input("")
+                    if final_prompt.lower() == "y":
+                        file.write(f"username=")
+                        shell.type_writer_effect(f"{shell.GREEN}Username has been successfully reset (I don't know who you are now 💀){shell.RESET}", 0.04)
+                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                    elif final_prompt.lower() == "n":
+                        shell.type_writer_effect(f"{shell.WHITE}That was close 💀{shell.RESET}", 0.04)
+                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                    else:
+                        shell.type_writer_effect(f"{shell.WHITE}Incorrect input❌{shell.RESET}", 0.04)
+                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                        
+        except IOError as e:
+            print("Erorr while trying to change username in config file")
+            
 def main() -> None:
     """
     Main method which runs the PyTorrent client interface.
@@ -529,6 +568,8 @@ def main() -> None:
                         client.get_active_peer_list()
                     elif choice == 2:
                         client.get_available_files()
+                    elif choice == 5:
+                        client.change_username()
                     else:
                         print("Invalid choice, please try again.")
                 except ValueError:
