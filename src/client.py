@@ -519,19 +519,22 @@ class Client:
         Changes the username of the client. Also allows them to reset their data
         """
         
-        shell.type_writer_effect(f"{shell.WHITE}Changing your Username...{shell.RESET}", 0.04)
+        global username
+        
+        shell.type_writer_effect(f"{shell.WHITE}Changing your username...{shell.RESET}", 0.04)
         print("")
-        shell.type_writer_effect(f"{shell.BLUE}Leave your new Username empty if you would like to delete your data 🗑️{shell.RESET}", 0.04)
+        shell.type_writer_effect(f"{shell.BLUE}Your username cannot be empty or have any spaces in it 🙅‍♂️ {shell.RESET}", 0.04)
         print("")
         
         shell.type_writer_effect(f"{shell.WHITE}Enter your new username:{shell.RESET}", 0.04)
         
         new_username = input().strip()
         
+        self.lock.acquire()
         
         try:
             
-            if new_username:
+            if new_username and " " not in new_username:
                 
                 self.udp_socket.settimeout(self.tracker_timeout)
                 
@@ -546,6 +549,7 @@ class Client:
                 
                         file.write(f"username={new_username}")
                     
+                    username = new_username
                     shell.type_writer_effect(f"{shell.GREEN}Username for {peer_address} successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
                     shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
                     
@@ -553,24 +557,17 @@ class Client:
                     shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
                     shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
             else:
-                shell.type_writer_effect(f"{shell.RED}You are about reset your data!!! This cannot be undone!!! Are you sure? (Y/N){shell.RESET}", 0.04)
                 
-                final_prompt = input("")
-                if final_prompt.lower() == "y":
-                    
-                    with open("config.txt", "w") as file: 
-                        file.write(f"username=")
-                    shell.type_writer_effect(f"{shell.GREEN}Username has been successfully reset (I don't know who you are now 💀){shell.RESET}", 0.04)
-                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-                elif final_prompt.lower() == "n":
-                    shell.type_writer_effect(f"{shell.WHITE}That was close 💀{shell.RESET}", 0.04)
-                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-                else:
-                    shell.type_writer_effect(f"{shell.WHITE}Incorrect input❌{shell.RESET}", 0.04)
-                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                shell.type_writer_effect(f"{shell.RED}Incorrect input. Your username cannot be empty or have any spaces in it❌{shell.RESET}", 0.04)
+                shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
                         
         except Exception as e:
-            print(f"Error while trying to change username: {e}")
+            shell.type_writer_effect(f" {shell.BOLD}{shell.RED}Error while trying to change username: {e}{shell.RESET}")
+            shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+            
+        self.lock.release()
+            
+            
             
 def main() -> None:
     """
