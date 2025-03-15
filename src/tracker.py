@@ -379,7 +379,6 @@ class Tracker:
                         formatted_date = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
                         print(f"{shell.BRIGHT_MAGENTA}Clean-up performed at: {formatted_date}{shell.RESET}")
                         print(f"{shell.BRIGHT_RED}Removed inactive peer: {peer}{shell.RESET}")
-                        print(self.file_repository)
                
     def keep_peer_alive(self, peer_address: tuple, username: str = "unknown"):
         """
@@ -418,7 +417,7 @@ if __name__ == '__main__':
     shell.print_logo()
     
     # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17382)
+    tracker = Tracker('137.158.160.145', 17383)
     
     # Start the peer cleanup thread.
     cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)

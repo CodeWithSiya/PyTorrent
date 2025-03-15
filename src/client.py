@@ -1,12 +1,17 @@
+from concurrent.futures import ThreadPoolExecutor
 import custom_shell as shell
 from threading import *
 from socket import *
 import selectors
+import traceback
 import hashlib
 import select 
+import queue
 import json
 import time
 import os
+
+import traceback
 
 class Client:
     """
@@ -59,7 +64,7 @@ class Client:
         
         # Initialise the TCP socket for leecher connections.
         self.tcp_socket = socket(AF_INET, SOCK_STREAM)
-        self.tcp_socket.bind((self.host, self.tcp_port))
+        self.tcp_socket.bind(("0.0.0.0", self.tcp_port))
         self.tcp_socket.listen(5)
         
         # Use a selector to manage multiple connections using multiplexing.
@@ -111,8 +116,20 @@ class Client:
                 else:
                     # Send an error message if the chunk is not found.
                     peer_socket.sendall(b"CHUNK_NOT_FOUND")
+            elif request.startswith("REQUEST_METADATA"):
+                # Parse the request to get the filename
+                _, filename = request.split()
+                
+                # Check if the file exists in the file_chunks dictionary
+                if filename in self.file_chunks:
+                    # Send the file metadata
+                    metadata = self.file_chunks[filename]
+                    peer_socket.sendall(json.dumps(metadata).encode('utf-8'))
+                else:
+                    # Send an error message if the file is not found
+                    peer_socket.sendall(b"FILE_NOT_FOUND")      
             else:
-                print(f"Invalid request from {peer_socket.getpeername()}: {request}")
+                print(f"Invalid request from: {request}")
         except Exception as e:
             print(f"Error handling TCP connection: {e}")
         finally:
@@ -124,65 +141,211 @@ class Client:
         Accepts a new connection and registers it with the selector.
         """
         connection, address = server_socket.accept()
-        print(f"Accepted connection from {connection}")
+        print(f"Accepted connection from {address}")
         connection.setblocking(False)
         self.selector.register(connection, selectors.EVENT_READ, self.handle_tcp_connection)       
         
-    #TODO: Write to a seperate .tmp file before writing to the actual file.
     def download_file(self, filename: str, seeder_address: tuple, output_dir: str = "user/downloads"):
         """
-        Downloads a file from a seeder by requesting chunks one by one.
+        Downloads a file from multiple seeders by requesting chunks in parallel using ThreadPoolExecutor.
         """
-        # Ensure the output directory exists.
-        os.makedirs(output_dir, exist_ok = True)
+        with self.lock:
+            # Ensure the output directory exists.
+            os.makedirs(output_dir, exist_ok = True)
+            
+            # Create the output file path and a .tmp file.
+            output_file_path = os.path.join(output_dir, filename)
+            temp_dir = os.path.join(output_dir, ".tmp")
+            os.makedirs(temp_dir, exist_ok = True)
+            
+            # Query tracker for additional seeders for this file.
+            response = self.query_tracker_for_peers(filename)
+            if not response:
+                print(f"Failed to get peer information for {filename}.")
+                return
+            
+            # Get list of all available seeders.
+            seeders = response.get("seeders", [])
+            if not seeders:
+                print(f"No seeders available for file '{filename}.")
+                    
+            # Retrieve the metadata of a specific file from the first seeder.
+            metadata = self.request_file_metadata(filename, tuple(seeders[0])) if seeders else None
+            if not metadata:
+                print(f"Could not retrieve metadata for {filename}")
+                return
+            
+            # Print some debugging information.
+            total_chunks = len(metadata["chunks"])
+            print(f"File has {total_chunks} chunk(s) to download")
+            
+            # Create a chunk queue for each chunk we need to download.
+            chunk_queue = queue.Queue()
+            for i in range(total_chunks):
+                chunk_queue.put(i)
+                
+            # Intialise folder for downloaded chunks.
+            downloaded_chunks = {}
+            
+            # Start parallel download.
+            max_workers = min(len(seeders), os.cpu_count() * 2 or 4)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Create a list of download tasks.
+                futures = []
+                for seeder in seeders:
+                    future = executor.submit(
+                        self.download_chunk_worker,
+                        filename,
+                        seeder,
+                        chunk_queue,
+                        temp_dir,
+                        downloaded_chunks,
+                    )
+                    futures.append(future)
+                    
+                # Wait for all download tasks to complete.
+                for future in futures:
+                    future.result()
+                
+            # Verify completion
+            if len(downloaded_chunks) != total_chunks:
+                print(f"Download incomplete: {len(downloaded_chunks)}/{total_chunks} chunks downloaded")
+                return
+            
+            # Reassemble the file
+            self.reassemble_file(filename, output_dir, temp_dir, downloaded_chunks)
         
-        # Create the output file path.
-        output_file_path = os.path.join(output_dir, filename)
-        
-        # Open the output file in binary write mode.
-        with open(output_file_path, "wb") as output_file:
-            # Initialise the chunk id counter. 
-            chunk_id = 0
-            while True:
-                # Request the chunk from the seeder.
-                chunk_data = self.request_chunk(filename, chunk_id, seeder_address)
+    def download_chunk_worker(self, filename, seeder, chunk_queue, temp_dir, downloaded_chunks):
+        """Helper method to download chunks from a seeder."""
+        while not chunk_queue.empty():
+            try:
+                chunk_id = chunk_queue.get_nowait()
+            except queue.Empty:
+                return
+
+            print(f"Requesting chunk {chunk_id} from {seeder}")
+            # Retrive the chunk size from the metadata.
+            chunk_size = self.file_chunks[filename]["chunks"][chunk_id]["size"]
+            chunk_data = self.request_chunk(filename, chunk_id, chunk_size, seeder)
+
+            if chunk_data:
+                chunk_path = os.path.join(temp_dir, f"{filename}.part{chunk_id}")
+                with open(chunk_path, "wb") as chunk_file:
+                    chunk_file.write(chunk_data)
+
                 
-                # If no more chunks are available, break the loop.
-                if not chunk_data: break
+                downloaded_chunks[chunk_id] = chunk_path
+                print(f"Progress: {len(downloaded_chunks)}/{len(downloaded_chunks) + chunk_queue.qsize()} chunks downloaded")
+            else:
+                # Requeue failed chunk
+                chunk_queue.put(chunk_id)
                 
-                # Write the chunk data to the output file.
-                output_file.write(chunk_data)
-                chunk_id += 1
-                
-        print(f"Download complete: {output_file_path}")
-    
     # TODO: Implement chunk verification using checksums and stuff.
-    def request_chunk(self, filename: str, chunk_id: int, seeder_address: tuple) -> bytes:
+    def request_chunk(self, filename: str, chunk_id: int, chunk_size: int, seeder_address: tuple) -> bytes:
         """
         Requests a specific chunk from a seeder.
         """
         try:
+            seeder_address = tuple(seeder_address)
             # Create a TCP socket and connect to the seeder.
             sock = socket(AF_INET, SOCK_STREAM)
-            sock.connect(seeder_address)
+            sock.connect((seeder_address[0], 12000))
+            sock.settimeout(10)
             
             # Send the request for the chunk.
             request_message = f"REQUEST_CHUNK {filename} {chunk_id}"
             sock.sendall(request_message.encode('utf-8'))
             
-            # Receive the chunk data.
-            chunk_data = sock.recv(1024 * 1024)
+            # Receive the chunk data with a buffer.
+            chunk_data = b""
+            bytes_received = 0
             
-            if chunk_data == b"CHUNK_NOT_FOUND":
-                print(f"Chunk {chunk_id} not found for file {filename}.")
-                return None
-            
+            # Continue receiving until we have the exact number of bytes expected.
+            while bytes_received < chunk_size:
+                try:
+                    data = sock.recv(min(64 * 1024, chunk_size - bytes_received))
+                    
+                    # Check if we received an error message on first data packet.
+                    if bytes_received == 0 and data == b"CHUNK_NOT_FOUND":
+                        print(f"Chunk {chunk_id} not found for file {filename}.")
+                        return None
+                    
+                    # Check if connection closed prematurely.
+                    if not data:  
+                        print(f"Warning: Connection closed after receiving {bytes_received}/{chunk_size} bytes")
+                        break
+                    
+                    chunk_data += data
+                    bytes_received = len(chunk_data)
+                    print(f"Received {bytes_received}/{chunk_size} bytes ({(bytes_received/chunk_size)*100:.1f}%)")     
+                        
+                except socket.timeout:
+                    print(f"Timeout after receiving {bytes_received}/{chunk_size} bytes")
+                    if bytes_received > 0:
+                        # Return partial data if we got something
+                        return chunk_data
+                    return None      
+               
+            print(f"Successfully received chunk {chunk_id} ({bytes_received} bytes)")                   
             return chunk_data
         except Exception as e:
             print(f"Error requesting chunk {chunk_id} from {seeder_address}: {e}")
             return None
         finally:
             sock.close()
+        
+    def request_file_metadata(self, filename: str, seeder_address: tuple) -> dict:
+        """
+        Requests metadata about a file from a seeder.
+        
+        :param filename: Name of the file
+        :param seeder_address: Address of the seeder (host, port)
+        :return: Dictionary containing file metadata or None if the request fails
+        """
+        try:
+            # Create a TCP socket and connect to the seeder
+            sock = socket(AF_INET, SOCK_STREAM)
+            print(seeder_address[0])
+            sock.connect((seeder_address[0], 12000))  # THIS LINE SAYS CONNECTION REFUSED!
+            sock.settimeout(10)  # Set a timeout for the request
+            
+            # Send the request for the file metadata
+            request_message = f"REQUEST_METADATA {filename}"
+            sock.sendall(request_message.encode('utf-8'))
+            
+            # Receive the metadata
+            metadata_data = sock.recv(1024 * 10)  # Increased buffer size for metadata
+            print(metadata_data)
+            
+            if metadata_data == b"FILE_NOT_FOUND" or metadata_data == b"METADATA_NOT_AVAILABLE":
+                print(f"Metadata not available for file {filename} from {seeder_address}")
+                return None
+            
+            # Parse the metadata
+            metadata = json.loads(metadata_data.decode('utf-8'))
+            return metadata
+        except Exception as e:
+            error_message = traceback.format_exc()
+            print(error_message)
+            print(f"Error requesting metadata for {filename} from {seeder_address}: {e}")
+            return None
+        finally:
+            sock.close()
+
+    def reassemble_file(self, filename, output_dir, temp_dir, downloaded_chunks):
+        """Merges all downloaded chunks into the final file."""
+        output_file_path = os.path.join(output_dir, filename)
+        print("All chunks downloaded. Reassembling file...")
+
+        with open(output_file_path, "wb") as output_file:
+            for i in sorted(downloaded_chunks.keys()):
+                chunk_path = downloaded_chunks[i]
+                with open(chunk_path, "rb") as chunk_file:
+                    output_file.write(chunk_file.read())
+                os.remove(chunk_path)
+
+        os.rmdir(temp_dir)
+        print(f"Download complete: {output_file_path}")
     
     def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
         """
@@ -600,6 +763,49 @@ class Client:
                 return None
         except Exception as e:
             print(f"Error querying the tracker for available peers: {e}")
+            
+    def handle_downloads(self) -> None:
+        """
+        Handles the file download process for the leecher.
+        - Queries the tracker for available files.
+        - Prompts the user to select a file to download.
+        - Queries the tracker for seeders of the selected file.
+        - Downloads the file from one of the seeders.
+        """
+        # try:
+        shell.type_writer_effect(f"{shell.WHITE}Let's start the file downloading process ... {shell.get_random_emoji()}{shell.RESET}\n")
+        
+        # Querying the tracker for available files.
+        self.get_available_files()
+        shell.print_line()
+        
+        # Prompt the user to select a file to download.
+        filename = input("Enter the name of the file you want to download:\n").strip()
+        if not filename:
+            print("Filename cannot be empty. Please try again.")
+            
+        # Query the tracker for seeders of the selected file.
+        response = self.query_tracker_for_peers(filename)
+        if not response:
+            print(f"File '{filename}' not found or no seeders available.")
+            return
+        
+        # Returning a list of seeders for the file.
+        seeders = response.get("seeders", [])
+        print(seeders)
+        if not seeders:
+            print(f"No seeders available for file '{filename}'.")
+            return
+        
+        seeder_address = tuple(seeders[0])  # Select the first seeder
+        shell.type_writer_effect(f"Downloading '{filename}' from {seeder_address}...")
+        
+        # Step 5: Call the download_file method to start the download.
+        self.download_file(filename, seeder_address)
+        
+        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Download of '{filename}' completed successfully.{shell.RESET}")
+        # except Exception as e:
+        #     print(f"Error handling downloads: {e}")
     
     def send_keep_alive(self) -> None:
         """
@@ -616,7 +822,8 @@ class Client:
             response_message, peer_address = self.udp_socket.recvfrom(1024)
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
-        self.lock.release()
+        finally:
+            self.lock.release()
             
     def keep_alive(self) -> None:
         """
@@ -653,7 +860,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17390, 0)
+        client = Client(gethostbyname(gethostname()), 17383, 12000)
         
         shell.clear_shell() 
         shell.print_logo()
@@ -706,6 +913,7 @@ def main() -> None:
         shell.hit_any_key_to_exit()
         shell.clear_shell()
     except Exception as e:
+        traceback.print_exc()
         print(e)
     
 if __name__ == '__main__':    
