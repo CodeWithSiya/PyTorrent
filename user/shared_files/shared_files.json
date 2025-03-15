@@ -1,0 +1,423 @@
+{
+    "files": {
+        "2.1_Abstraction.pptx": {
+            "size": 46172802,
+            "checksum": "1cd8ddc6279002ed62ed1ebdea0b1a72a8ecb12e7377a36d4151a63749f41b94",
+            "chunks": [
+                {
+                    "id": 0,
+                    "size": 1048576,
+                    "checksum": "118352b193577336fe740b4f7ca7ab10567460a79672132fd7119097d50f43ab"
+                },
+                {
+                    "id": 1,
+                    "size": 1048576,
+                    "checksum": "eb3d91d89d270a8b7e06c99bf714756ab664cb0c9fc41e83bba5f3b6fd8b251e"
+                },
+                {
+                    "id": 2,
+                    "size": 1048576,
+                    "checksum": "50d2d72767278fdc65d16de9755194dd526b575a4bbc08c4efc90dc9568c2b97"
+                },
+                {
+                    "id": 3,
+                    "size": 1048576,
+                    "checksum": "ca4a7a2f59b33de8bec514e7b3dfe69894f4edd555801720f4fad844925e6f7e"
+                },
+                {
+                    "id": 4,
+                    "size": 1048576,
+                    "checksum": "f66f2043fe11a63fba5210751c19b2f36da8746971f45255c2d2ebad535ee3a1"
+                },
+                {
+                    "id": 5,
+                    "size": 1048576,
+                    "checksum": "e4efe8ea5acd4a30bde0c32c78c8b2138d905c3e8ab63b2cc8a4c532d0d4bc71"
+                },
+                {
+                    "id": 6,
+                    "size": 1048576,
+                    "checksum": "23b6ff322fbe27679ee8b4440d235ea1a7222449f5b7d0a6188a1866c6b8c64e"
+                },
+                {
+                    "id": 7,
+                    "size": 1048576,
+                    "checksum": "4f5e943c45d0c55deef3ebdf96b3cf3cd00c6ddccb8fec35d471aa5b05545714"
+                },
+                {
+                    "id": 8,
+                    "size": 1048576,
+                    "checksum": "c3b035a85b8d11a199a7a90a31120950a9eac3def64ee3647e96513c867849df"
+                },
+                {
+                    "id": 9,
+                    "size": 1048576,
+                    "checksum": "aea552266cb4716eec7ca4702b426b4a72b4bed4b9b0e7767fb0b3c4c9147ae0"
+                },
+                {
+                    "id": 10,
+                    "size": 1048576,
+                    "checksum": "5a16c39d710159af88a87f655245283229d63ee604300dc1232d50c7a1e7fb0d"
+                },
+                {
+                    "id": 11,
+                    "size": 1048576,
+                    "checksum": "295143eb565fc59878f68860eb7eacaf97a108353f846d0ff5900b1d20188322"
+                },
+                {
+                    "id": 12,
+                    "size": 1048576,
+                    "checksum": "e277c763349b6f3c7d30a4f7130e27588e05f1b7ec5dc7e12823c0bfd7d786ce"
+                },
+                {
+                    "id": 13,
+                    "size": 1048576,
+                    "checksum": "6ff7098d26bbd780d6d008b04118a1f5280f20467ad9093fe54cfdf1d156e457"
+                },
+                {
+                    "id": 14,
+                    "size": 1048576,
+                    "checksum": "ac0eec4048d12b59f14cfd356de51857aec6eea53389b1cf95b142262d253eac"
+                },
+                {
+                    "id": 15,
+                    "size": 1048576,
+                    "checksum": "8edd52c69ce36db0316efd35bea2a22a57e6c9113f45edc9caa029f2b5c94f92"
+                },
+                {
+                    "id": 16,
+                    "size": 1048576,
+                    "checksum": "8a9d3ffbdcd883cea4419daff748f225606c7b6ef6ebc79de34d309e729eeb6b"
+                },
+                {
+                    "id": 17,
+                    "size": 1048576,
+                    "checksum": "e9f1fb38a7b63c4dc6aecbafdfe92f9ec1bf619bd88deb42e4f8e13e90988da3"
+                },
+                {
+                    "id": 18,
+                    "size": 1048576,
+                    "checksum": "c608d368323515efe1bb427740542b315dbd0234ffb8d39e0f0ceccbd5ddebe6"
+                },
+                {
+                    "id": 19,
+                    "size": 1048576,
+                    "checksum": "af8ff69fa1fb644d556a75c77acf6323c06a0d8ac2b032800079dee5d9d633f2"
+                },
+                {
+                    "id": 20,
+                    "size": 1048576,
+                    "checksum": "332b514cff29ba2071db497bbd838cd83f76bb79bb3f5273a45a1b3bc9ba7bda"
+                },
+                {
+                    "id": 21,
+                    "size": 1048576,
+                    "checksum": "a329ca20edc991b6516d73450d68993a1c2101fc1d2eb2d281eb2a58780d395e"
+                },
+                {
+                    "id": 22,
+                    "size": 1048576,
+                    "checksum": "828200e4538debcb0677ad5ed96aba3a2d82bdd2acbbde30d3b0b95a9ef3cfc8"
+                },
+                {
+                    "id": 23,
+                    "size": 1048576,
+                    "checksum": "fdd5e29c0a58f007d7d7d1fb646399617669c10ff59dbf27e25dd27b730c7532"
+                },
+                {
+                    "id": 24,
+                    "size": 1048576,
+                    "checksum": "5ec9d63b661a35bf2ccafc4936545b4af86f00c4b7cdcad0f2bf7e4a77048947"
+                },
+                {
+                    "id": 25,
+                    "size": 1048576,
+                    "checksum": "a151b2ed43cad6b98e115d03451b64d85a72353f99fe7aa78ddad48405788177"
+                },
+                {
+                    "id": 26,
+                    "size": 1048576,
+                    "checksum": "c8d82aaf756b85d42885ededc692f628648b9195c56dbaf4208f6261c51d2a6c"
+                },
+                {
+                    "id": 27,
+                    "size": 1048576,
+                    "checksum": "77ff117c83a4e521b46c535c479dd9f25bae1da6122a9ccaa89207f55169949c"
+                },
+                {
+                    "id": 28,
+                    "size": 1048576,
+                    "checksum": "28087720fd76439a16a1774c7fff1476de6ff8e0967581409239c3716b902596"
+                },
+                {
+                    "id": 29,
+                    "size": 1048576,
+                    "checksum": "1cd462247e79503409f7176458e8dbc4284a292fca9515f732e7b85a2f098cd0"
+                },
+                {
+                    "id": 30,
+                    "size": 1048576,
+                    "checksum": "38255c33d1c45d1353457a3603b027232deabe0992700d441b8fe6f9b061f2ce"
+                },
+                {
+                    "id": 31,
+                    "size": 1048576,
+                    "checksum": "015640360be3b804e70c2107d19f6cdd4ade683cb18ff2bccbea8e4dfd6d1e3b"
+                },
+                {
+                    "id": 32,
+                    "size": 1048576,
+                    "checksum": "35ebd83ce651b9df919af4c2d8dca95cec0a43fd17959d9a2f2873fc84c2d97a"
+                },
+                {
+                    "id": 33,
+                    "size": 1048576,
+                    "checksum": "9bc1e5820053fa95f4760fb48db901e5571d2f4a8aef6a6a32d3476372507a4a"
+                },
+                {
+                    "id": 34,
+                    "size": 1048576,
+                    "checksum": "88fbbfd397a430de72191a75ba0b06d07a876d1b9df317ff0fcb88e7fb4acc0c"
+                },
+                {
+                    "id": 35,
+                    "size": 1048576,
+                    "checksum": "324802714e1896ae2b25f7225173b8a79f4a1a8e2d880c70d7b6ff65fb666a1d"
+                },
+                {
+                    "id": 36,
+                    "size": 1048576,
+                    "checksum": "4bcdf4c33a14b09a6ec952a2c654f6fda510eebb1f1bc8f59b5ed84387c2c811"
+                },
+                {
+                    "id": 37,
+                    "size": 1048576,
+                    "checksum": "ef87c3b369731dbf8d0ab96eebd106f17bbe8c8cf685b447e9d04ab02ebc4382"
+                },
+                {
+                    "id": 38,
+                    "size": 1048576,
+                    "checksum": "d0a63997bb7917a3ef98650ec68f9a6324ab973be045beac32e4f2fb5c368ce7"
+                },
+                {
+                    "id": 39,
+                    "size": 1048576,
+                    "checksum": "91795cddbf6515c71f15dafab5c7a1b846f12da17375b48cd28232e7686fe697"
+                },
+                {
+                    "id": 40,
+                    "size": 1048576,
+                    "checksum": "3a6c806ecc22c2c9cf1a9f70c3229b2535ac52aacaaa6f29aaf7138d2313464d"
+                },
+                {
+                    "id": 41,
+                    "size": 1048576,
+                    "checksum": "0dae4b43b6244bdbfcb43599ab40cbee3fdec0048a1c75f1995626c0225678c8"
+                },
+                {
+                    "id": 42,
+                    "size": 1048576,
+                    "checksum": "474c8760fb42327f34a97f90deac97654a5dfa555a02f70cb948b323c638d526"
+                },
+                {
+                    "id": 43,
+                    "size": 1048576,
+                    "checksum": "4b13760970acb4dbc9eec99d0a61a42b5342b7dcaa05df2c44070f01820ba84b"
+                },
+                {
+                    "id": 44,
+                    "size": 35458,
+                    "checksum": "ecccfa6f5028239019360ab46f8a8b810056195478cb9134ed51fad57f12e3c6"
+                }
+            ]
+        },
+        "piano.flp": {
+            "size": 166151,
+            "checksum": "28561e7921c4e6c902237afcf597018f66ac93b6514f4aace675c064e28a255a",
+            "chunks": [
+                {
+                    "id": 0,
+                    "size": 166151,
+                    "checksum": "28561e7921c4e6c902237afcf597018f66ac93b6514f4aace675c064e28a255a"
+                }
+            ]
+        },
+        "OG777x-FUNERAL-(prod.og777x).mp3": {
+            "size": 2126575,
+            "checksum": "42f427f91d7531fa5db08efb7e9a19d7dd115def69a1a210cc2a00082c043dc1",
+            "chunks": [
+                {
+                    "id": 0,
+                    "size": 1048576,
+                    "checksum": "53c5461b671d5ee05734a4030a67ffad9da246a5cf870730554c7b2eb17bc536"
+                },
+                {
+                    "id": 1,
+                    "size": 1048576,
+                    "checksum": "72ae9f2ee80c18416bb6e0226e89ddd66d626ab4609dc523cf8f54638fe996e6"
+                },
+                {
+                    "id": 2,
+                    "size": 29423,
+                    "checksum": "6017f488a547dc3e5db9fdbd0ffe47db63e06301b6dd61c4cea1bdafb82b0315"
+                }
+            ]
+        },
+        "Computer Organization and Design 5E - Patterson Hennessy - 0124077269.pdf": {
+            "size": 30635804,
+            "checksum": "3a98e8f2cf41142cc11ca5ea63ff79d8be53e3bf631233af875a2b50e30e10d5",
+            "chunks": [
+                {
+                    "id": 0,
+                    "size": 1048576,
+                    "checksum": "202d9bdf1e665c7f47d5b861a026741871a9fc5d387fcafd55ce2608164d2165"
+                },
+                {
+                    "id": 1,
+                    "size": 1048576,
+                    "checksum": "577dde8613ca572eadc60485a0fb7acf589be2e7d7c449c4f7ba463e99d1b7ad"
+                },
+                {
+                    "id": 2,
+                    "size": 1048576,
+                    "checksum": "ef6cca000dae82b02415472c4a80f05f315dd7b680f2d0ce19403761475de82f"
+                },
+                {
+                    "id": 3,
+                    "size": 1048576,
+                    "checksum": "5a24da0e0e13561ad2bd36873d74ecec63bdfb939aa32bf033606d99f6421bc9"
+                },
+                {
+                    "id": 4,
+                    "size": 1048576,
+                    "checksum": "405243cc7535b398fc3b2da3ed6e73b2745ac97dad9b4f8fec567c4d62606ee1"
+                },
+                {
+                    "id": 5,
+                    "size": 1048576,
+                    "checksum": "da91eb801dc587aabe4c9bdbec006fba5ef6bb7093c44ac914a27f1f69619f6f"
+                },
+                {
+                    "id": 6,
+                    "size": 1048576,
+                    "checksum": "b2a34d709fe6830c9638b16493d6fe82c97ae426d4dbc7c3fdaa16923ff22b02"
+                },
+                {
+                    "id": 7,
+                    "size": 1048576,
+                    "checksum": "20a6318b5c43314c1d0c5c7cbacf99d412985b5e0dc55c39a58c3fb3b46f28b3"
+                },
+                {
+                    "id": 8,
+                    "size": 1048576,
+                    "checksum": "f842ffae56bb505304bf4c37355034c3c187996661c07ac32e135d80fed804a8"
+                },
+                {
+                    "id": 9,
+                    "size": 1048576,
+                    "checksum": "bb00a749668fde4a3f950cbfafd5dbe175a4aba2d5d1212a254f56fac2c25a77"
+                },
+                {
+                    "id": 10,
+                    "size": 1048576,
+                    "checksum": "c414c3c2db0c3d94171354d147c73d37795e737566f6bd7699cdbdd51a396d2d"
+                },
+                {
+                    "id": 11,
+                    "size": 1048576,
+                    "checksum": "0b8cd0bdc218ca3c639cef32969d2b8816b41a962a08acd7be0d5ff9b9c63859"
+                },
+                {
+                    "id": 12,
+                    "size": 1048576,
+                    "checksum": "ac56dae0a5648402316ba027edf736f322e9ccac5a15bb3df01cd6e12ef02b3d"
+                },
+                {
+                    "id": 13,
+                    "size": 1048576,
+                    "checksum": "f73ef0eb3a5a32536b61e8c9c4f2b6a70ef27d1bf30168a5276fb57b28353c0b"
+                },
+                {
+                    "id": 14,
+                    "size": 1048576,
+                    "checksum": "f0d3142565343b5db0826db9648058498e14a2007225f16f251d2d12cb8a69de"
+                },
+                {
+                    "id": 15,
+                    "size": 1048576,
+                    "checksum": "ad3dc814bdee6cb2a35be98bce9ffc73c1d76d4c89f147153584fff0dcc1ed27"
+                },
+                {
+                    "id": 16,
+                    "size": 1048576,
+                    "checksum": "088eda8a1a96d9530ab2f7c916435d2d4b06b283d191fa68ee2990b35a26437f"
+                },
+                {
+                    "id": 17,
+                    "size": 1048576,
+                    "checksum": "04744b30153e4ed276ca836a31c6cece5cc12444f3a76b1caaab850beefe58a3"
+                },
+                {
+                    "id": 18,
+                    "size": 1048576,
+                    "checksum": "6fdc32e950c27b0cce03c4f2ca1287133901178b7b5199fc842eaa5594da2861"
+                },
+                {
+                    "id": 19,
+                    "size": 1048576,
+                    "checksum": "f8a44c87ffbabbe783694252d2f236f602f62672fbc92d4b638af7e79d3a3bc8"
+                },
+                {
+                    "id": 20,
+                    "size": 1048576,
+                    "checksum": "454ef0aa5d86168fe5847b0691ba7b7baf963bb2894dd2a1062bd74acd41c64e"
+                },
+                {
+                    "id": 21,
+                    "size": 1048576,
+                    "checksum": "28020bdd8304e0db3c736e785b988d6850eaa68a1716f6fd0fbbe8ed33afbb7d"
+                },
+                {
+                    "id": 22,
+                    "size": 1048576,
+                    "checksum": "34b07e24b341d9b136aafa1d1a691021530cf402d18f2dce3c202469e6fb6b0f"
+                },
+                {
+                    "id": 23,
+                    "size": 1048576,
+                    "checksum": "e318eb5594c84c69add98e9feefa4ed9995e4f7ce5e0e5b974bcab1d78c38a45"
+                },
+                {
+                    "id": 24,
+                    "size": 1048576,
+                    "checksum": "11bc529e2b6c7804dc8fff21a0e567a32cd24227e7d7d9f1628b5746147e35a3"
+                },
+                {
+                    "id": 25,
+                    "size": 1048576,
+                    "checksum": "a3813915bae044d5e190ea643dcc1ef57e58f1bc91eb0bf71b3d9e28e3c707a7"
+                },
+                {
+                    "id": 26,
+                    "size": 1048576,
+                    "checksum": "b5a9f14411bcd443932e10fc5c40d64e0b0290e93decf700e00ddece2f82a1ce"
+                },
+                {
+                    "id": 27,
+                    "size": 1048576,
+                    "checksum": "eff2b0e71086b85ee1514cf26733b1cabd0f7205ae36bb4ee0c0bf22843ea81e"
+                },
+                {
+                    "id": 28,
+                    "size": 1048576,
+                    "checksum": "62a88394d6aeb2e932d7bb807f518a97d0d58277f11c5400b8ad58daf99709ef"
+                },
+                {
+                    "id": 29,
+                    "size": 227100,
+                    "checksum": "2206adc04b26cb3e8c6edea99492f120feb5caa90e1334011508639304f18ef6"
+                }
+            ]
+        }
+    }
+}
