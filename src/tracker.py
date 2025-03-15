@@ -140,6 +140,12 @@ class Tracker:
             self.handle_ping_request(peer_address)
         elif request_type == "GET_PEERS":
             self.handle_get_peers_request(split_request, peer_address)
+        elif request_type == "CHANGE_USERNAME":
+            username = split_request[1]
+            new_username = split_request[2]
+            ip_address = split_request[3]
+            self.change_username(username, new_username, ip_address)
+            
         else:
             error_message = f"400 Bad Request: Unknown request type."
             self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -227,6 +233,22 @@ class Tracker:
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
+        
+    def change_username(self, username, new_username, addr):
+        """
+        Change the username on the active list when a user changes their username
+        
+        :param: username: Old username of the client
+        :param: new_username: The username the client wants to change to
+        :param: addr: The ip_address of the client
+        """
+        for ip_address in self.active_peers:
+            if ip_address == addr:
+                if ip_address["username"] == username:
+                    
+                    ip_address["username"] = new_username
+                    break
+        
     def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
         """
         Handles get peers requests.
@@ -288,6 +310,8 @@ class Tracker:
                          
         print(f"{shell.BRIGHT_MAGENTA}200 OK: Client '{username}' with address {peer_address} successfully obtained a list of active clients.{shell.RESET}")
         self.tracker_socket.sendto(response.encode(), peer_address)
+        
+    
         
     def list_available_files(self, peer_address: tuple) -> None:
         """
