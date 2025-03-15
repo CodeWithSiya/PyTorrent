@@ -876,7 +876,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17383, 12001)
+        client = Client(gethostbyname(gethostname()), 17383, 12006)
         
         shell.clear_shell() 
         shell.print_logo()

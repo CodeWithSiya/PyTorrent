@@ -413,17 +413,21 @@ class Tracker:
         response_message = "200 OK: PONG"
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                                               
-if __name__ == '__main__':   
-    # Clear the terminal shell and print the PyTorrent Logo.
-    shell.clear_shell()
-    shell.print_logo()
-    
-    # Initialise the tracker.
-    tracker = Tracker('137.158.160.145', 17383)
-    
-    # Start the peer cleanup thread.
-    cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
-    cleanup_thread.start()
-    
-    # Start the tracker.
-    tracker.start()
+if __name__ == '__main__':
+    try:  
+        # Initialise the tracker.
+        shell.clear_shell()
+        tracker = Tracker('137.158.160.145', 17383) 
+        
+        # Clear the terminal shell and print the PyTorrent Logo.
+        shell.print_logo()
+            
+        # Start the peer cleanup thread.
+        cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
+        cleanup_thread.start()
+        
+        # Start the tracker.
+        tracker.start()
+    except OSError as e:
+        if e.errno == 98:
+            print("😬 Oops! The tracker port is already in use. Please try a different port or stop the process using it. 🔄")
