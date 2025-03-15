@@ -22,6 +22,8 @@ class Client:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """
+    # GET METADATA FROM TRACKER
+    
     # Defining a few class-wide variables for access throughout class.
     client = None
     username = "unknown"
@@ -172,13 +174,13 @@ class Client:
                 print(f"No seeders available for file '{filename}.")
                     
             # Retrieve the metadata of a specific file from the first seeder.
-            metadata = self.request_file_metadata(filename, tuple(seeders[0])) if seeders else None
-            if not metadata:
+            seeder_metadata = self.request_file_metadata(filename, tuple(seeders[0])) if seeders else None
+            if not seeder_metadata:
                 print(f"Could not retrieve metadata for {filename}")
                 return
             
             # Print some debugging information.
-            total_chunks = len(metadata["chunks"])
+            total_chunks = len(seeder_metadata["chunks"])
             print(f"File has {total_chunks} chunk(s) to download")
             
             # Create a chunk queue for each chunk we need to download.
@@ -202,6 +204,7 @@ class Client:
                         chunk_queue,
                         temp_dir,
                         downloaded_chunks,
+                        seeder_metadata
                     )
                     futures.append(future)
                     
@@ -209,15 +212,15 @@ class Client:
                 for future in futures:
                     future.result()
                 
-            # Verify completion
+            # Verify download completion.
             if len(downloaded_chunks) != total_chunks:
                 print(f"Download incomplete: {len(downloaded_chunks)}/{total_chunks} chunks downloaded")
                 return
             
-            # Reassemble the file
+            # Reassemble the file on the leecher side.
             self.reassemble_file(filename, output_dir, temp_dir, downloaded_chunks)
         
-    def download_chunk_worker(self, filename, seeder, chunk_queue, temp_dir, downloaded_chunks):
+    def download_chunk_worker(self, filename, seeder, chunk_queue, temp_dir, downloaded_chunks, seeder_metadata):
         """Helper method to download chunks from a seeder."""
         while not chunk_queue.empty():
             try:
@@ -225,9 +228,9 @@ class Client:
             except queue.Empty:
                 return
 
+            # Retrive the chunk size from the metadata from the seeder.
             print(f"Requesting chunk {chunk_id} from {seeder}")
-            # Retrive the chunk size from the metadata.
-            chunk_size = self.file_chunks[filename]["chunks"][chunk_id]["size"]
+            chunk_size = seeder_metadata["chunks"][chunk_id]["size"]
             chunk_data = self.request_chunk(filename, chunk_id, chunk_size, seeder)
 
             if chunk_data:
@@ -806,13 +809,12 @@ class Client:
         
         # Returning a list of seeders for the file.
         seeders = response.get("seeders", [])
-        print(seeders)
         if not seeders:
             print(f"No seeders available for file '{filename}'.")
             return
         
         seeder_address = tuple(seeders[0])  # Select the first seeder
-        shell.type_writer_effect(f"Downloading '{filename}' from {seeder_address}...")
+        shell.type_writer_effect(f"Downloading '{filename}' ...")
         
         # Step 5: Call the download_file method to start the download.
         self.download_file(filename, seeder_address)
@@ -874,7 +876,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17383, 12003)
+        client = Client(gethostbyname(gethostname()), 17383, 12001)
         
         shell.clear_shell() 
         shell.print_logo()
