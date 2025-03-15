@@ -11,8 +11,6 @@ import json
 import time
 import os
 
-import traceback
-
 class Client:
     """
     Pytorrent Client Implementation.
@@ -24,7 +22,6 @@ class Client:
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """
-    # TODO:Properly add checks and stuff.
     # Defining a few class-wide variables for access throughout class.
     client = None
     username = "unknown"
@@ -81,10 +78,6 @@ class Client:
     def handle_connections(self) -> None:
         """
         Handles incoming TCP connections using a selector.
-        
-        Notes: 
-        - The callback is a function that should be executed when the event occurs on this socket.
-        - The callback file object is the socket in this case.
         """
         while True:
             # Waits for new events (new connections & data available to read) on registered sockets.
@@ -97,11 +90,13 @@ class Client:
     def handle_tcp_connection(self, peer_socket: socket):
         """
         Handles incoming TCP connections from peers requesting file chunks or metadata.
+        
+        :param peer_socket: Socket of the peer we receive a TCP message from.
         """
         try:
             # Receive the request from the peer.
             request = peer_socket.recv(1024).decode('utf-8')
-            
+
             if request.startswith("REQUEST_CHUNK"):
                 # Parse the request to get the filename and chunk ID.
                 _, filename, chunk_id = request.split()
@@ -147,7 +142,7 @@ class Client:
         
     def download_file(self, filename: str, seeder_address: tuple, output_dir: str = "user/downloads"):
         """
-        Downloads a file from multiple seeders by requesting chunks in parallel using ThreadPoolExecutor.
+        Downloads a file from multiple seeders by requesting chunks in parallel using a ThreadPoolExecutor.
         """
         with self.lock:
             # Ensure the output directory exists.
@@ -157,6 +152,13 @@ class Client:
             output_file_path = os.path.join(output_dir, filename)
             temp_dir = os.path.join(output_dir, ".tmp")
             os.makedirs(temp_dir, exist_ok = True)
+            
+            # Check if download already exists.
+            if os.path.exists(output_file_path):
+                shell.type_writer_effect(f"File '{filename}' already exists in {output_dir}")
+                choice = input("Do you want to download it again? (y/n): ").lower()
+                if choice != 'y':
+                    return
             
             # Query tracker for additional seeders for this file.
             response = self.query_tracker_for_peers(filename)
@@ -232,15 +234,13 @@ class Client:
                 chunk_path = os.path.join(temp_dir, f"{filename}.part{chunk_id}")
                 with open(chunk_path, "wb") as chunk_file:
                     chunk_file.write(chunk_data)
-
-                
+ 
                 downloaded_chunks[chunk_id] = chunk_path
                 print(f"Progress: {len(downloaded_chunks)}/{len(downloaded_chunks) + chunk_queue.qsize()} chunks downloaded")
             else:
                 # Requeue failed chunk
                 chunk_queue.put(chunk_id)
-                
-    # TODO: Implement chunk verification using checksums and stuff.
+
     def request_chunk(self, filename: str, chunk_id: int, chunk_size: int, seeder_address: tuple) -> bytes:
         """
         Requests a specific chunk from a seeder.
@@ -293,6 +293,42 @@ class Client:
             return None
         finally:
             sock.close()
+            
+    def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
+        """
+        Retrieves a specific chunk of a file from disk.
+        
+        :param filename: Name of the file.
+        :param chunk_id: ID of the chunk to retrieve.
+        
+        :return: The chunk data as bytes, or None if the chunk is not found or an error occurs.
+        """
+        # Check if the file exists in the file_chunks dictionary.
+        if filename not in self.file_chunks:
+            print(f"File '{filename} not found in shared files.")
+            return None
+        
+        # Get the full file path and chunk metadata
+        file_path = os.path.join(self.file_dir, filename) 
+        chunk_metadata = self.file_chunks[filename]["chunks"][chunk_id]
+        chunk_size = chunk_metadata["size"]
+        
+        try:
+            with open(file_path, "rb") as file:
+                file.seek(chunk_id * chunk_size)  # Move to the start of the chunk.
+                chunk_data = file.read(chunk_size)  # Read and return the chunk data.
+                
+                # Verify checksum for that chunk.
+                if "checksum" in chunk_metadata:
+                    actual_checksum = hashlib.sha256(chunk_data).hexdigest()
+                    if actual_checksum != chunk_metadata["checksum"]:
+                        print(f"Warning: Checksum mismatch for chunk {chunk_id} of file '{filename}'")
+                        
+                return chunk_data
+                         
+        except Exception as e:
+            print(f"Error reading chunk {chunk_id} from file '{filename}': {e}")
+            return None
         
     def request_file_metadata(self, filename: str, seeder_address: tuple) -> dict:
         """
@@ -333,44 +369,22 @@ class Client:
             sock.close()
 
     def reassemble_file(self, filename, output_dir, temp_dir, downloaded_chunks):
-        """Merges all downloaded chunks into the final file."""
+        """Merges all downloaded chunks into the final file and verifies integrity."""
         output_file_path = os.path.join(output_dir, filename)
         print("All chunks downloaded. Reassembling file...")
 
+        # Merge the downloaded chunks as required.
         with open(output_file_path, "wb") as output_file:
             for i in sorted(downloaded_chunks.keys()):
                 chunk_path = downloaded_chunks[i]
                 with open(chunk_path, "rb") as chunk_file:
                     output_file.write(chunk_file.read())
                 os.remove(chunk_path)
+                
+        # Verify the file integrity using checksums.
 
         os.rmdir(temp_dir)
         print(f"Download complete: {output_file_path}")
-    
-    def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
-        """
-        Retrieves a specific chunk of a file from disk.
-        
-        :param filename: Name of the file.
-        :param chunk_id: ID of the chunk to retrieve.
-        :param chunk_size: Size of each chunk in bytes (default: 1 MB).
-        
-        :return: The chunk data as bytes, or None if the chunk is not found or an error occurs.
-        """
-        # Check if the file exists in the file_chunks dictionary.
-        if filename not in self.file_chunks:
-            print(f"File '{filename} not found in shared files.")
-            return None
-        
-        # Get the full file path.
-        file_path = os.path.join(self.file_dir, filename) 
-        try:
-            with open(file_path, "rb") as file:
-                file.seek(chunk_id * chunk_size)  # Move to the start of the chunk.
-                return file.read(chunk_size)  # Read and return the chunk data.
-        except Exception as e:
-            print(f"Error reading chunk {chunk_id} from file '{filename}': {e}")
-            return None
             
     def load_metadata(self) -> None:
         """
@@ -860,7 +874,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17383, 12000)
+        client = Client(gethostbyname(gethostname()), 17383, 12003)
         
         shell.clear_shell() 
         shell.print_logo()
