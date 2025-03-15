@@ -355,7 +355,7 @@ class Client:
                 
         except Exception as e:
             # Tracker does not respond within the timeout time.
-            shell.type_writer_effect(f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later!{shell.RESET}")
+            shell.type_writer_effect(f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later! 😱{shell.RESET}")
             shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
             sys.exit(1)
         
@@ -478,7 +478,12 @@ class Client:
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
         except Exception as e:
-            print(f"Error notifying the tracker that this peer is alive: {e}")
+            shell.type_writer_effect(f"{shell.BOLD}{shell.RED}FATAL ERROR: Cannot notify the tracker that this peer is alive: {e} {shell.RESET}")
+            shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Tracker Disconnected!! Please try again later 😭{shell.RESET}")
+            shell.type_writer_effect(f"{shell.BLUE}Exiting...{shell.RESET}")
+            sys.exit(1)
+            
+            
         self.lock.release()
             
     def keep_alive(self) -> None:
@@ -522,41 +527,44 @@ class Client:
         
         
         try:
-            with open("config/config.txt", "w") as file:
-                if new_username:
-                    
-                    self.udp_socket.settimeout(self.tracker_timeout)
-                    
-                    request_message = f"CHANGE_USERNAME {username} {new_username} {(self.host, self.udp_port)}"
-                    
-                    self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
-                    
-                    response_message = self.udp_socket.recvfrom(1024)
-                    
-                    if (response_message == "CHANGED_USERNAME"):
-                    
+            
+            if new_username:
+                
+                self.udp_socket.settimeout(self.tracker_timeout)
+                
+                request_message = f"CHANGE_USERNAME {username} {new_username} {(self.host, self.udp_port)}"
+                
+                self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+                
+                response_message, peer_address = self.udp_socket.recvfrom(1024)
+                
+                if (response_message.decode() == "USERNAME_CHANGED"):
+                    with open("config/config.txt", "w") as file:
+                
                         file.write(f"username={new_username}")
-                        
-                        shell.type_writer_effect(f"{shell.GREEN}Username successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
-                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-                        
-                    else:
-                        shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
-                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-                else:
-                    shell.type_writer_effect(f"{shell.RED}You are about reset your data!!! This cannot be undone!!! Are you sure? (Y/N){shell.RESET}", 0.04)
                     
-                    final_prompt = input("")
-                    if final_prompt.lower() == "y":
+                    shell.type_writer_effect(f"{shell.GREEN}Username for {peer_address} successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                    
+                else:
+                    shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+            else:
+                shell.type_writer_effect(f"{shell.RED}You are about reset your data!!! This cannot be undone!!! Are you sure? (Y/N){shell.RESET}", 0.04)
+                
+                final_prompt = input("")
+                if final_prompt.lower() == "y":
+                    
+                    with open("config.txt", "w") as file: 
                         file.write(f"username=")
-                        shell.type_writer_effect(f"{shell.GREEN}Username has been successfully reset (I don't know who you are now 💀){shell.RESET}", 0.04)
-                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-                    elif final_prompt.lower() == "n":
-                        shell.type_writer_effect(f"{shell.WHITE}That was close 💀{shell.RESET}", 0.04)
-                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-                    else:
-                        shell.type_writer_effect(f"{shell.WHITE}Incorrect input❌{shell.RESET}", 0.04)
-                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.GREEN}Username has been successfully reset (I don't know who you are now 💀){shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                elif final_prompt.lower() == "n":
+                    shell.type_writer_effect(f"{shell.WHITE}That was close 💀{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                else:
+                    shell.type_writer_effect(f"{shell.WHITE}Incorrect input❌{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
                         
         except Exception as e:
             print(f"Error while trying to change username: {e}")

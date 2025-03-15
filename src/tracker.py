@@ -241,14 +241,14 @@ class Tracker:
         :param: new_username: The username the client wants to change to
         :param: addr: The ip_address of the client
         """
-        for ip_address in self.active_peers:
-            if ip_address == peer_address:
-                if ip_address["username"] == username:
-                    
-                    ip_address["username"] = new_username
-                    response_message = f"USERNAME_CHANGED"
+        for peer_address_key, peer_info in self.active_peers.items():
+            if peer_address_key == peer_address:  
+                if peer_info["username"] == username:  
+                    peer_info["username"] = new_username 
+                    response_message = "USERNAME_CHANGED"
                     self.tracker_socket.sendto(response_message.encode(), peer_address)
                     break
+
         
     def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
         """
