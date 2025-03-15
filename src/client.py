@@ -1,3 +1,4 @@
+import sys
 import custom_shell as shell
 from threading import *
 from socket import *
@@ -237,7 +238,7 @@ class Client:
                 
             # Register this client as a leecher with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
-            shell.type_writer_effect(f"{client.register_with_tracker()}")
+            client.register_with_tracker()
             
             # Start the KEEP_ALIVE thread.
             self.keep_alive_thread = Thread(target=self.keep_alive, daemon = True)
@@ -276,7 +277,7 @@ class Client:
          
             # Register this client with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
-            shell.type_writer_effect(f"{client.register_with_tracker()}")
+            client.register_with_tracker()
             
             # Start the KEEP_ALIVE thread.
             # Should only start if registration is successful!
@@ -297,56 +298,67 @@ class Client:
         :return: Message retrieved from the tracker.
         """
         global username
+        # try:
+        # Check the state of the client and create an appropriate request message.
+        if self.state == "leecher":
+            request_message = f"REGISTER leecher {username}"
+            
+                        
+        else:
+            # If the client is a seeder, include the list of shared files.
+            file_data = {
+                "files": [
+                    {
+                        "filename": filename, 
+                        "size": metadata["size"]
+                    }
+                    for filename, metadata in self.file_chunks.items()
+                ]
+            }
+            # Convert file_data to JSON and include it in the request message
+            request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
+
+        
+        # Send a request message to the tracker.
+        self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+        
+        # Set a timeout for receiving the response from the tracker.
+        self.udp_socket.settimeout(self.tracker_timeout)
+        
         try:
-            # Check the state of the client and create an appropriate request message.
-            if self.state == "leecher":
-                request_message = f"REGISTER leecher {username}"
-            else:
-                # If the client is a seeder, include the list of shared files.
-                file_data = {
-                    "files": [
-                        {
-                            "filename": filename, 
-                            "size": metadata["size"]
-                        }
-                        for filename, metadata in self.file_chunks.items()
-                    ]
-                }
-                # Convert file_data to JSON and include it in the request message
-                request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
-                     
-            # Send a request message to the tracker.
-            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            # Receive a response message from the tracker.
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
+            response_message = response_message.decode()
             
-            # Set a timeout for receiving the response from the tracker.
-            self.udp_socket.settimeout(self.tracker_timeout)
+            # Extract the status code (first three characters) from the response.
+            status_code = response_message[:3]
             
-            try:
-                # Receive a response message from the tracker.
-                response_message, peer_address = self.udp_socket.recvfrom(1024)
-                response_message = response_message.decode()
-                
-                # Extract the status code (first three characters) from the response.
-                status_code = response_message[:3]
-                
-                # Handle the respone based on the status code.
-                if status_code == "201":
-                    if self.state == "leecher":
-                        return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}"
-                    else:
-                        return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2 : response_message.find('seeder') + 6]}!{shell.RESET}"
-                elif status_code == "400":
-                    return f"Error: {response_message[4:]}"
-                elif status_code == "403":
-                    return f"Registration Denied: {response_message[4:]}"
+            # Handle the respone based on the status code.
+            if status_code == "201":
+                if self.state == "leecher":
+                    shell.type_writer_effect(f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}")
                 else:
-                    return f"Unexpected response: {response_message}"
-            except socket.timeout:
-                # Tracker does not respond within the timeout time.
-                return f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later!{shell.RESET}"
+                    shell.type_writer_effect(f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2 : response_message.find('seeder') + 6]}!{shell.RESET}")
+            elif status_code == "400":
+                shell.type_writer_effect(f"Error: {response_message[4:]}")
+                shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+                sys.exit(1)
+            elif status_code == "403":
+                shell.type_writer_effect(f"Registration Denied: {response_message[4:]}")
+                shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+                sys.exit(1)
+            else:
+                shell.type_writer_effect(f"Unexpected response: {response_message}")
+                shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+                sys.exit(1)
+                
+                
         except Exception as e:
-            print(f"Error registering with tracker: {e}")       
-            
+            # Tracker does not respond within the timeout time.
+            shell.type_writer_effect(f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later!{shell.RESET}")
+            shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+            sys.exit(1)
+        
     def get_active_peer_list(self) -> None:
         """
         Queries the tracker for a list of active peers in the network.
@@ -558,6 +570,7 @@ def main() -> None:
         
         while True:
             # Obtain the users input for their selected option.
+           
             choice = input("Please input the number of your selected option:\n")
             
             # Process the users request -> Add a clear command.
@@ -571,9 +584,9 @@ def main() -> None:
                     elif choice == 5:
                         client.change_username()
                     else:
-                        print("Invalid choice, please try again.")
+                        shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Please input a valid choice number or 'help'.{shell.RESET}", 0.04)
                 except ValueError:
-                    print("Please enter a valid number or 'help'.")
+                    shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Please input a valid choice number or 'help'.{shell.RESET}", 0.04)
             else:
                 shell.print_menu()
             shell.print_line()

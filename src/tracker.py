@@ -195,6 +195,7 @@ class Tracker:
         :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
         :param files: A dictionary of files the peer has (if it's a seeder).
         """
+        response_message = ""
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
@@ -219,6 +220,8 @@ class Tracker:
                             response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
                         else:
                             response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
+                # If no files, something needs to happen!!!!!!!!
+                    
             else:
                 response_message = "403 Forbidden: Client limit reached, registration denied."
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
