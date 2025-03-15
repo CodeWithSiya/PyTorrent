@@ -524,9 +524,25 @@ class Client:
         try:
             with open("config/config.txt", "w") as file:
                 if new_username:
-                    file.write(f"username={new_username}")
-                    shell.type_writer_effect(f"{shell.GREEN}Username successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
-                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                    
+                    self.udp_socket.settimeout(self.tracker_timeout)
+                    
+                    request_message = f"CHANGE_USERNAME {username} {new_username} {(self.host, self.udp_port)}"
+                    
+                    self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+                    
+                    response_message = self.udp_socket.recvfrom(1024)
+                    
+                    if (response_message == "CHANGED_USERNAME"):
+                    
+                        file.write(f"username={new_username}")
+                        
+                        shell.type_writer_effect(f"{shell.GREEN}Username successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
+                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                        
+                    else:
+                        shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
+                        shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
                 else:
                     shell.type_writer_effect(f"{shell.RED}You are about reset your data!!! This cannot be undone!!! Are you sure? (Y/N){shell.RESET}", 0.04)
                     
@@ -542,8 +558,8 @@ class Client:
                         shell.type_writer_effect(f"{shell.WHITE}Incorrect input❌{shell.RESET}", 0.04)
                         shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
                         
-        except IOError as e:
-            print("Erorr while trying to change username in config file")
+        except Exception as e:
+            print(f"Error while trying to change username: {e}")
             
 def main() -> None:
     """

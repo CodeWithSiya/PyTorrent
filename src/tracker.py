@@ -143,8 +143,7 @@ class Tracker:
         elif request_type == "CHANGE_USERNAME":
             username = split_request[1]
             new_username = split_request[2]
-            ip_address = split_request[3]
-            self.change_username(username, new_username, ip_address)
+            self.change_username(username, new_username, peer_address)
             
         else:
             error_message = f"400 Bad Request: Unknown request type."
@@ -201,7 +200,7 @@ class Tracker:
         :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
         :param files: A dictionary of files the peer has (if it's a seeder).
         """
-        response_message = ""
+        
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
@@ -224,8 +223,8 @@ class Tracker:
                                 "size": filesize
                             })
                             response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type} with files: {files}"
-                        else:
-                            response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
+                else:
+                    response_message = f"201 Created: Client '{username}' with address {peer_address} successfully registered as a {peer_type}"
                 # If no files, something needs to happen!!!!!!!!
                     
             else:
@@ -234,7 +233,7 @@ class Tracker:
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
         
-    def change_username(self, username, new_username, addr):
+    def change_username(self, username, new_username, peer_address):
         """
         Change the username on the active list when a user changes their username
         
@@ -243,10 +242,12 @@ class Tracker:
         :param: addr: The ip_address of the client
         """
         for ip_address in self.active_peers:
-            if ip_address == addr:
+            if ip_address == peer_address:
                 if ip_address["username"] == username:
                     
                     ip_address["username"] = new_username
+                    response_message = f"USERNAME_CHANGED"
+                    self.tracker_socket.sendto(response_message.encode(), peer_address)
                     break
         
     def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
