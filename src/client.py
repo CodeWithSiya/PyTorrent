@@ -478,10 +478,13 @@ class Client:
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
         except Exception as e:
+            shell.clear_shell()
+            shell.print_logo()
+            
             shell.type_writer_effect(f"{shell.BOLD}{shell.RED}FATAL ERROR: Cannot notify the tracker that this peer is alive: {e} {shell.RESET}")
             shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Tracker Disconnected!! Please try again later 😭{shell.RESET}")
             shell.type_writer_effect(f"{shell.BLUE}Exiting...{shell.RESET}")
-            sys.exit(1)
+            os._exit(1)
             
             
         self.lock.release()
