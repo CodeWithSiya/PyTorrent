@@ -537,7 +537,7 @@ class Client:
             sock.sendall(request_message.encode('utf-8'))
             
             # Receive the metadata
-            metadata_data = sock.recv(1024 * 10)  # Increased buffer size for metadata
+            metadata_data = self.recv_all(sock)  # Increased buffer size for metadata
             
             if metadata_data == b"FILE_NOT_FOUND" or metadata_data == b"METADATA_NOT_AVAILABLE":
                 print(f"Metadata not available for file {filename} from {seeder_address}")
@@ -553,6 +553,24 @@ class Client:
             return None
         finally:
             sock.close()
+            
+    def recv_all(self, sock, buffer_size=4096):
+        """
+        Receive all data from a socket until the end of the file.
+        """
+        data = b""
+        while True:
+            chunk = sock.recv(buffer_size)
+            if not chunk:
+                break
+            data += chunk
+            try:
+                # Try parsing to check if we have the full JSON
+                json.loads(data.decode('utf-8'))
+                break
+            except json.JSONDecodeError:
+                continue  # Keep receiving if JSON is incomplete
+        return data
 
     def reassemble_file(self, filename, output_dir, temp_dir, downloaded_chunks):
         """
@@ -1112,7 +1130,7 @@ def main() -> None:
             port = input().strip()
         
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(ip_address, int(port), 12000) 
+        client = Client(ip_address, int(port), 12001) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
