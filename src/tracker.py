@@ -340,7 +340,8 @@ class Tracker:
             file_data = json.loads(json_data_str)
             if "files" not in file_data:
                 error_message = "400 Bad Request: Invalid JSON metadata. 'files' field is missing."
-                return self.tracker_socket.sendto(error_message.encode(), peer_address)
+                self.tracker_socket.sendto(error_message.encode(), peer_address)
+                return
             
             # Update the file repository with the new file data.
             with self.lock:
@@ -485,7 +486,7 @@ if __name__ == '__main__':
     try:  
         # Initialise the tracker.
         shell.clear_shell()
-        tracker = Tracker('137.158.160.145', 17383) 
+        tracker = Tracker('137.158.160.145', 17380) 
         
         # Clear the terminal shell and print the PyTorrent Logo.
         shell.print_logo()

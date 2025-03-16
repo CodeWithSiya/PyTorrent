@@ -1075,35 +1075,27 @@ def main() -> None:
             format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         
     try:    
+        # Clear the shell and initialise the client instance.
         shell.clear_shell() 
         shell.print_logo()
-        shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_CYAN}Initialising.......✅{shell.RESET}")
+        shell.type_writer_effect(f"{shell.BOLD}{shell.WHITE}Initialising the client ... ✅{shell.RESET}\n")
         
-        print()
-        
-        shell.type_writer_effect(f"{shell.GREEN}Enter the IP Address and Port Number of the Tracker you would like to connect to 📶{shell.RESET}")
-        
-        print()
-        
-        shell.type_writer_effect(f"{shell.BOLD}{shell.WHITE}Enter the IP Address (You can leave this open if you don't know it):{shell.RESET}")
-        
+        # Obtain user input for the tracker's IP Address and Port Number.
+        shell.type_writer_effect(f"{shell.BOLD}{shell.WHITE}Enter the Tracker's IP Address:{shell.RESET}")
         ip_address = input()
-        
-        shell.type_writer_effect(f"{shell.BOLD}{shell.WHITE}Enter the Port Number (You can leave this open as well):{shell.RESET}")
-        
+        shell.type_writer_effect(f"{shell.BOLD}{shell.WHITE}Enter the Tracker's Port Number:{shell.RESET}") 
         port = input()
         
-        # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        if ip_address and port:
-            client = Client(ip_address, port, 12001) 
-        elif ip_address and not port:
-            client = Client(ip_address, 17380, 12001)
-        elif not ip_address and port:
-            client = Client(gethostbyname(gethostname()), port, 12001)
-        else:
-            client = Client(gethostbyname(gethostname()), 17380, 12001)
-            
+        # Ensure the fields are not empty.
+        while not port or not port.isdigit():
+            if not port:
+                shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Port number cannot be empty. Please enter a valid port number:{shell.RESET}")
+            elif not port.isdigit():
+                shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Port number must be a valid integer. Please enter a valid port number:{shell.RESET}")
+            port = input().strip()
         
+        # Instantiate the client instance, then register with the tracker though the welcoming sequence.
+        client = Client(ip_address, int(port), 12000) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
