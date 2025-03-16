@@ -95,6 +95,39 @@ class Client:
         self.seeder_recovery_thread = Thread(target=self.recover_unavailable_seeders, daemon=True)
         self.seeder_recovery_thread.start()
         
+        # Start a thread to periodically check for deleted files.
+        self.file_check_thread = Thread(target=self.check_for_deleted_files, daemon=True)
+        self.file_check_thread.start()
+
+    def check_for_deleted_files(self):
+        """
+        Periodically checks for deleted files in the shared directory and updates the metadata.
+        """
+        while True:
+            time.sleep(60)  # Check every 60 seconds
+            with self.lock:
+                # Get the list of files currently in the shared directory.
+                current_files = set(os.listdir(self.file_dir))
+
+                # Get the list of files in the metadata.
+                metadata_files = set(self.file_chunks.keys())
+
+                # Find files that are in metadata but not in the shared directory.
+                deleted_files = metadata_files - current_files
+
+                # Remove deleted files from metadata.
+                for filename in deleted_files:
+                    if filename in self.file_chunks:
+                        del self.file_chunks[filename]
+                        self.sharing_files.discard(filename)
+                        logging.info(f"Removed deleted file '{filename}' from shared files.")
+
+                # Save the updated metadata
+                self.save_metadata()
+
+                # Update the tracker with the new list of shared files
+                self.update_tracker_files()
+        
     def handle_connections(self) -> None:
         """
         Handles incoming TCP connections using a selector.
@@ -150,9 +183,9 @@ class Client:
                     # Send an error message if the file is not found
                     peer_socket.sendall(b"FILE_NOT_FOUND")      
             else:
-                print(f"Invalid request from: {request}")
+                logging.error(f"Invalid request from: {request}")
         except Exception as e:
-            print(f"Error handling TCP connection: {e}")
+            logging.error(f"Error handling TCP connection: {e}")
         finally:
             self.selector.unregister(peer_socket)
             peer_socket.close()
@@ -476,9 +509,9 @@ class Client:
                     response = sock.recv(1024)
                     if response == b"PONG":
                         self.seeder_availability[seeder] = True
-                        print(f"Seeder {seeder} is back online.")
+                        logging.info(f"Seeder {seeder} is back online.")
                 except Exception as e:
-                    print(f"Seeder {seeder} is still unavailable: {e}")
+                    logging.warning(f"Seeder {seeder} is still unavailable: {e}")
                 finally:
                     sock.close() 
             
@@ -540,16 +573,14 @@ class Client:
             metadata_data = self.recv_all(sock)  # Increased buffer size for metadata
             
             if metadata_data == b"FILE_NOT_FOUND" or metadata_data == b"METADATA_NOT_AVAILABLE":
-                print(f"Metadata not available for file {filename} from {seeder_address}")
+                logging.info(f"Metadata not available for file {filename} from {seeder_address}")
                 return None
             
             # Parse the metadata
             metadata = json.loads(metadata_data.decode('utf-8'))
             return metadata
         except Exception as e:
-            error_message = traceback.format_exc()
-            print(error_message)
-            print(f"Error requesting metadata for {filename} from {seeder_address}: {e}")
+            logging.info(f"Error requesting metadata for {filename} from {seeder_address}: {e}")
             return None
         finally:
             sock.close()
@@ -669,7 +700,7 @@ class Client:
             if os.path.isfile(file_path) and filename != "shared_files.json":
                 # If the file is not already tracked in file_chunks, add it.
                 if filename not in self.file_chunks:
-                    print(f"Adding new file: {filename}")
+                    logging.info(f"Adding new file: {filename}")
                     self.file_chunks[filename] = self.generate_file_metadata(file_path)
                 else:
                     # Check if the file has been modified or corrupted using checksums.
@@ -678,7 +709,7 @@ class Client:
                     
                     # Check if the file has been modified, and generate new file metadata.
                     if existing_checksum != new_checksum:
-                        print(f"Updating modified file: {filename}")
+                        logging.info(f"Updating modified file: {filename}")
                         self.file_chunks[filename] = self.generate_file_metadata(file_path)           
         # Save updated metadata
         self.save_metadata()
@@ -1185,8 +1216,10 @@ def main() -> None:
         shell.hit_any_key_to_exit()
         shell.clear_shell()
     except Exception as e:
-        traceback.print_exc()
         print(e)
+    except OSError as e:
+        if e.errno == 98:
+            print("😬 Oops! The client TCP port is already in use. Please try a different port or stop the process using it. 🔄")
     
 if __name__ == '__main__':    
     # Print the initial window.
