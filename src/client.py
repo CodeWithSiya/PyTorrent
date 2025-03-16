@@ -485,9 +485,9 @@ class Client:
                 # Send the request to the tracker.
                 self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
                 response_message, _ = self.udp_socket.recvfrom(1024)
-                print(f"Tracker updated with new files: {response_message.decode('utf-8')}")
+                logging.info(f"Tracker updated with new files: {response_message.decode('utf-8')}")
         except Exception as e:
-            print(f"Error updating tracker with files: {e}")
+            logging.info(f"Error updating tracker with files: {e}")
             
     def recover_unavailable_seeders(self):
         """
@@ -498,7 +498,7 @@ class Client:
             unavailable_seeders = [seeder for seeder, available in self.seeder_availability.items() if not available]
             
             if unavailable_seeders:
-                print(f"Checking {len(unavailable_seeders)} unavailable seeders for recovery...")
+                logging.info(f"Checking {len(unavailable_seeders)} unavailable seeders for recovery...")
                 
             for seeder in unavailable_seeders:
                 try:
