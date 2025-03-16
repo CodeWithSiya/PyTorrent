@@ -1075,8 +1075,34 @@ def main() -> None:
             format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         
     try:    
+        shell.clear_shell() 
+        shell.print_logo()
+        shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_CYAN}Initialising.......✅{shell.RESET}")
+        
+        print()
+        
+        shell.type_writer_effect(f"{shell.GREEN}Enter the IP Address and Port Number of the Tracker you would like to connect to 📶{shell.RESET}")
+        
+        print()
+        
+        shell.type_writer_effect(f"{shell.BOLD}{shell.WHITE}Enter the IP Address (You can leave this open if you don't know it):{shell.RESET}")
+        
+        ip_address = input()
+        
+        shell.type_writer_effect(f"{shell.BOLD}{shell.WHITE}Enter the Port Number (You can leave this open as well):{shell.RESET}")
+        
+        port = input()
+        
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17383, 12001)
+        if ip_address and port:
+            client = Client(ip_address, port, 12001) 
+        elif ip_address and not port:
+            client = Client(ip_address, 17380, 12001)
+        elif not ip_address and port:
+            client = Client(gethostbyname(gethostname()), port, 12001)
+        else:
+            client = Client(gethostbyname(gethostname()), 17380, 12001)
+            
         
         shell.clear_shell() 
         shell.print_logo()
