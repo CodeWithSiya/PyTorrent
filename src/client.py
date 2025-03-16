@@ -1,15 +1,22 @@
-from concurrent.futures import ThreadPoolExecutor
-import custom_shell as shell
-from threading import *
-from socket import *
-import selectors
-import traceback
-import hashlib
-import select 
-import queue
-import json
-import time
+# Standard Library Imports.
 import os
+import time
+import json
+import queue
+import select
+import hashlib
+import logging
+import traceback
+from socket import *
+from threading import *
+from concurrent.futures import ThreadPoolExecutor
+import selectors
+
+# Third-Party Library Import.
+from tqdm import tqdm
+
+# Custom Shell Module Import.
+import custom_shell as shell
 
 class Client:
     """
@@ -155,7 +162,7 @@ class Client:
         Accepts a new connection and registers it with the selector.
         """
         connection, address = peer_socket.accept()
-        print(f"Accepted connection from {address}")
+        logging.info(f"Accepted connection from {address}")
         connection.setblocking(False)
         self.selector.register(connection, selectors.EVENT_READ, self.handle_tcp_request)       
         
@@ -179,6 +186,7 @@ class Client:
                 choice = input("Do you want to download it again? (y/n): ").lower()
                 if choice != 'y':
                     return
+                print()
                 
             # Add to downloading files set.
             self.downloading_files.add(filename)
@@ -186,14 +194,14 @@ class Client:
             # Query tracker for additional seeders for this file.
             response = self.query_tracker_for_peers(filename)
             if not response:
-                print(f"Failed to get peer information for {filename}.")
+                logging.error(f"Failed to get peer information for {filename}.")
                 self.downloading_files.remove(filename)
                 return
             
             # Get list of all available seeders.
             seeders = response.get("seeders", [])
             if not seeders:
-                print(f"No seeders available for file '{filename}.")
+                logging.error(f"No seeders available for file '{filename}.")
                 self.downloading_files.remove(filename)
                 return
                 
@@ -216,13 +224,13 @@ class Client:
               
             # Print error message if metadata could not be retrieved.          
             if not seeder_metadata:
-                print(f"Could not retrieve metadata for {filename} from any seeder")
+                logging.error(f"Could not retrieve metadata for {filename} from any seeder")
                 self.downloading_files.remove(filename)
                 return
             
             # Print some debugging information.
             total_chunks = len(seeder_metadata["chunks"])
-            print(f"File has {total_chunks} chunk(s) to download")
+            logging.info(f"File has {total_chunks} chunk(s) to download")
             
             # Create a chunk queue for each chunk we need to download.
             chunk_queue = queue.Queue()
@@ -231,6 +239,9 @@ class Client:
                 
             # Intialise folder for downloaded chunks.
             downloaded_chunks = {}
+            
+            # Create a progress bar to be shared between all worker threads.
+            progress_bar = tqdm(total=total_chunks, desc=f"Downloading {filename}", unit="MB")
             
             # Start parallel downloads from different seeders.
             max_workers = min(len(seeders), os.cpu_count() * 2 or 4)
@@ -245,17 +256,22 @@ class Client:
                         chunk_queue,
                         temp_dir,
                         downloaded_chunks,
-                        seeder_metadata
+                        seeder_metadata,
+                        progress_bar
                     )
                     futures.append(future)
                     
                 # Wait for all download tasks to complete.
                 for future in futures:
                     future.result()
+                    
+            # Close the shared progress bar.
+            progress_bar.close()
+            print()
                 
             # Verify download completion.
             if len(downloaded_chunks) != total_chunks:
-                print(f"Download incomplete: {len(downloaded_chunks)}/{total_chunks} chunks downloaded")
+                logging.error(f"Download incomplete: {len(downloaded_chunks)}/{total_chunks} chunks downloaded")
                 self.downloading_files.remove(filename)
                 return
             
@@ -270,8 +286,13 @@ class Client:
             if choice == 'y':
                 self.add_file_to_shared(filename, output_file_path)
         
-    def download_chunk_worker(self, filename, seeder, chunk_queue, temp_dir, downloaded_chunks, seeder_metadata):
-        """Helper method to download chunks from a seeder."""
+    def download_chunk_worker(self, filename, seeder, chunk_queue, temp_dir, downloaded_chunks, seeder_metadata, progress_bar):
+        """
+        Helper method to download chunks from a seeder.
+        """
+        # Get total_chunks from seeder_metadata.
+        total_chunks = len(seeder_metadata["chunks"])
+        
         while not chunk_queue.empty():
             try:
                 chunk_id = chunk_queue.get_nowait()
@@ -280,7 +301,7 @@ class Client:
 
             # Retrive the chunk size from the metadata from the seeder.
             if self.seeder_availability.get(tuple(seeder), True):
-                print(f"Requesting chunk {chunk_id} from {seeder}")
+                logging.info(f"Requesting chunk {chunk_id} from {seeder}")
                 chunk_size = seeder_metadata["chunks"][chunk_id]["size"]
                 chunk_data = self.request_chunk(filename, chunk_id, chunk_size, seeder)
                 
@@ -289,16 +310,17 @@ class Client:
                     chunk_path = os.path.join(temp_dir, f"{filename}.part{chunk_id}")
                     with open(chunk_path, "wb") as chunk_file:
                         chunk_file.write(chunk_data)
- 
+
                     downloaded_chunks[chunk_id] = chunk_path
-                    print(f"Progress: {len(downloaded_chunks)}/{len(downloaded_chunks) + chunk_queue.qsize()} chunks downloaded")
+                    progress_bar.update(1)  # Update the progress bar.
+                    logging.info(f"Progress: {len(downloaded_chunks)}/{len(downloaded_chunks) + chunk_queue.qsize()} chunks downloaded")
                 else:
                     # Mark the seeder as unavailable.
                     self.seeder_availability[tuple(seeder)] = False
-                    print(f"Seeder {seeder} is unavailable. Trying another seeder...")
+                    logging.warning(f"Seeder {seeder} is unavailable. Trying another seeder...")
                     chunk_queue.put(chunk_id)
             else:
-                print(f"Skipping unavailble seeder: {seeder}")
+                logging.warning(f"Skipping unavailble seeder: {seeder}")
                 chunk_queue.put(chunk_id)
 
     def request_chunk(self, filename: str, chunk_id: int, chunk_size: int, seeder_address: tuple) -> bytes:
@@ -306,9 +328,9 @@ class Client:
         Requests a specific chunk from a seeder.
         """
         try:
-            seeder_address = tuple(seeder_address)
             # Create a TCP socket and connect to the seeder.
             sock = socket(AF_INET, SOCK_STREAM)
+            seeder_address = tuple(seeder_address)
             sock.connect((seeder_address[0], 12000))
             sock.settimeout(10)
             
@@ -327,29 +349,29 @@ class Client:
                     
                     # Check if we received an error message on first data packet.
                     if bytes_received == 0 and data == b"CHUNK_NOT_FOUND":
-                        print(f"Chunk {chunk_id} not found for file {filename}.")
+                        logging.error(f"Chunk {chunk_id} not found for file {filename}.")
                         return None
                     
                     # Check if connection closed prematurely.
                     if not data:  
-                        print(f"Warning: Connection closed after receiving {bytes_received}/{chunk_size} bytes")
+                        logging.warning(f"Warning: Connection closed after receiving {bytes_received}/{chunk_size} bytes")
                         break
                     
                     chunk_data += data
                     bytes_received = len(chunk_data)
-                    print(f"Received {bytes_received}/{chunk_size} bytes ({(bytes_received/chunk_size)*100:.1f}%)")     
+                    logging.info(f"Received {bytes_received}/{chunk_size} bytes ({(bytes_received/chunk_size)*100:.1f}%)")     
                         
                 except socket.timeout:
-                    print(f"Timeout after receiving {bytes_received}/{chunk_size} bytes")
+                    logging.warning(f"Timeout after receiving {bytes_received}/{chunk_size} bytes")
                     if bytes_received > 0:
                         # Return partial data if we got something
                         return chunk_data
                     return None      
                
-            print(f"Successfully received chunk {chunk_id} ({bytes_received} bytes)")                   
+            logging.info(f"Successfully received chunk {chunk_id} ({bytes_received} bytes)")                   
             return chunk_data
         except Exception as e:
-            print(f"Error requesting chunk {chunk_id} from {seeder_address}: {e}")
+            logging.error(f"Error requesting chunk {chunk_id} from {seeder_address}: {e}")
             return None
         finally:
             sock.close()
@@ -384,7 +406,7 @@ class Client:
                 self.sharing_files.add(filename)
                 
                 # Register update with tracker to inform that we're now seeding this file.
-                self.update_tracker_files()
+                # self.update_tracker_files()
             
             except Exception as e:
                 print(f"Error adding file to shared directory: {e}")
@@ -417,7 +439,9 @@ class Client:
             print(f"Error updating tracker with files: {e}")
             
     def recover_unavailable_seeders(self):
-        """Periodically recheck unavailable seeders and mark them as available if they respond."""
+        """
+        Periodically recheck unavailable seeders and mark them as available if they respond.
+        """
         while True:
             time.sleep(60)  # Check every 60 seconds
             unavailable_seeders = [seeder for seeder, available in self.seeder_availability.items() if not available]
@@ -487,7 +511,6 @@ class Client:
         try:
             # Create a TCP socket and connect to the seeder
             sock = socket(AF_INET, SOCK_STREAM)
-            print(seeder_address[0])
             sock.connect((seeder_address[0], 12000))
             sock.settimeout(10)  # Set a timeout for the request
             
@@ -514,9 +537,11 @@ class Client:
             sock.close()
 
     def reassemble_file(self, filename, output_dir, temp_dir, downloaded_chunks):
-        """Merges all downloaded chunks into the final file and verifies integrity."""
+        """
+        Merges all downloaded chunks into the final file and verifies integrity.
+        """
         output_file_path = os.path.join(output_dir, filename)
-        print("All chunks downloaded. Reassembling file...")
+        logging.info("All chunks downloaded. Reassembling file...")
 
         # Merge the downloaded chunks as required.
         with open(output_file_path, "wb") as output_file:
@@ -529,7 +554,7 @@ class Client:
         # Verify the file integrity using checksums.
 
         os.rmdir(temp_dir)
-        print(f"Download complete: {output_file_path}")
+        logging.info(f"Download complete: {output_file_path}")
             
     def load_metadata(self) -> None:
         """
@@ -982,11 +1007,12 @@ class Client:
                 return
             
             # Step 5: Call the  method to start the download.
-            shell.type_writer_effect(f"Downloading '{filename}' ...")
+            shell.type_writer_effect(f"{shell.WHITE}Downloading '{filename}' ...{shell.RESET}\n")
             self.download_file(filename)
             
             shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Download of '{filename}' completed successfully.{shell.RESET}")
         except Exception as e:
+            traceback.print_exc()
             print(f"Error handling downloads: {e}")
     
     def send_keep_alive(self) -> None:
@@ -1039,6 +1065,14 @@ def main() -> None:
     # Defining global variables to class-wide access.
     global client
     global username
+    
+    # Ensure the 'logs' directory exists
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+        
+    # Configure logging for file downloads.
+        logging.basicConfig(filename='logs/download.log', level=logging.INFO,       
+            format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
@@ -1067,7 +1101,7 @@ def main() -> None:
                         client.get_active_peer_list()
                         shell.print_line()
                     elif choice == 2:
-                        if self.state == "seeder":
+                        if client.state == "seeder":
                             client.list_shared_files()
                         else:
                             shell.type_writer_effect("Oops! Looks like you have no files to share just yet. 📁🙂")
