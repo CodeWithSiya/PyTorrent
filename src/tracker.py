@@ -141,6 +141,8 @@ class Tracker:
             self.handle_ping_request(peer_address)
         elif request_type == "GET_PEERS":
             self.handle_get_peers_request(split_request, peer_address)
+        elif request_type == "UPDATE_FILES":
+            self.handle_update_files_request(split_request, peer_address)
         else:
             error_message = f"400 Bad Request: Unknown request type."
             self.tracker_socket.sendto(error_message.encode(), peer_address)
@@ -317,6 +319,72 @@ class Tracker:
             
         self.tracker_socket.sendto(json_response.encode(), peer_address)
         
+    def handle_update_files_request(self, split_request: list, peer_address: tuple) -> None:
+        """
+        Handles UPDATE_FILES requests from peers.
+        
+        :param split_request: The split request message sent by the peer.
+        :param peer_address: The address of the peer that sent the request.
+        """
+        # Ensure the request has the correct format: UPDATE_FILES <username> <JSON file data>
+        if len(split_request) < 3:
+            error_message = "400 Bad Request: Usage: UPDATE_FILES <username> <JSON file data>"
+            return self.tracker_socket.sendto(error_message.encode(), peer_address)
+        
+        # Extract the username and JSON file data.
+        username = split_request[1]
+        json_data_str = ' '.join(split_request[2:])
+        
+        try:
+            # Parse the JSON file data.
+            file_data = json.loads(json_data_str)
+            if "files" not in file_data:
+                error_message = "400 Bad Request: Invalid JSON metadata. 'files' field is missing."
+                return self.tracker_socket.sendto(error_message.encode(), peer_address)
+            
+            # Update the file repository with the new file data.
+            with self.lock:
+                # Remove existing files associated with this peer.
+                if peer_address in self.active_peers:
+                    peer_info = self.active_peers[peer_address]
+                    if peer_info['type'] == 'seeder':
+                        for file_info in peer_info.get('files', []):
+                            filename = file_info['filename']
+                            if filename in self.file_repository:
+                                self.file_repository[filename] = [
+                                    entry for entry in self.file_repository[filename]
+                                    if entry['peer_address'] != peer_address
+                                ]
+                                if not self.file_repository[filename]:
+                                    del self.file_repository[filename]
+                    
+                    # Update the peer's file list.
+                    peer_info['files'] = file_data['files']
+                    
+                    # Add the new files to the file repository.
+                    for file_info in file_data['files']:
+                        filename = file_info.get("filename")
+                        filesize = file_info.get("size")
+                        checksum = file_info.get("checksum")
+                        if filename:
+                            if filename not in self.file_repository:
+                                self.file_repository[filename] = []
+                            self.file_repository[filename].append({
+                                "peer_address": peer_address,
+                                "size": filesize,
+                                "checksum": checksum
+                            })
+                    
+                    response_message = f"200 OK: Files updated for client '{username}' with address {peer_address}"
+                else:
+                    response_message = f"403 Forbidden: Peer not found in active list: {peer_address}"
+        except json.JSONDecodeError:
+            response_message = "400 Bad Request: Invalid JSON format in metadata."
+    
+        # Send the response to the peer.
+        self.tracker_socket.sendto(response_message.encode(), peer_address)
+        print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
+        
     def remove_peer(self, peer_address: tuple, username: str = "unknown") -> None:
         """
         Removes a peer from the active list when it disconnects.
@@ -413,17 +481,21 @@ class Tracker:
         response_message = "200 OK: PONG"
         self.tracker_socket.sendto(response_message.encode(), peer_address)
                                               
-if __name__ == '__main__':   
-    # Clear the terminal shell and print the PyTorrent Logo.
-    shell.clear_shell()
-    shell.print_logo()
-    
-    # Initialise the tracker.
-    tracker = Tracker(gethostbyname(gethostname()), 17380)
-    
-    # Start the peer cleanup thread.
-    cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
-    cleanup_thread.start()
-    
-    # Start the tracker.
-    tracker.start()
+if __name__ == '__main__':
+    try:  
+        # Initialise the tracker.
+        shell.clear_shell()
+        tracker = Tracker('137.158.160.145', 17383) 
+        
+        # Clear the terminal shell and print the PyTorrent Logo.
+        shell.print_logo()
+            
+        # Start the peer cleanup thread.
+        cleanup_thread = Thread(target = tracker.remove_inactive_peers, daemon = True)
+        cleanup_thread.start()
+        
+        # Start the tracker.
+        tracker.start()
+    except OSError as e:
+        if e.errno == 98:
+            print("😬 Oops! The tracker port is already in use. Please try a different port or stop the process using it. 🔄")
