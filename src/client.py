@@ -204,6 +204,25 @@ class Client:
                 logging.error(f"No seeders available for file '{filename}.")
                 self.downloading_files.remove(filename)
                 return
+            
+                        # Filter out self from the list of seeders.
+            local_ip = self.host
+            filtered_seeders = []
+            for seeder in seeders:
+                seeder_ip = seeder[0]
+                seeder_port = seeder[1]
+                # Skip if this seeder is actually the current client.
+                if seeder_ip == local_ip and seeder_port == self.udp_port:
+                    logging.info(f"Filtered out self from seeders list: {seeder}")
+                    continue
+                filtered_seeders.append(seeder)
+            
+            seeders = filtered_seeders
+            
+            if not seeders:
+                logging.error(f"Only self available as seeder for file '{filename}'. Cannot download.")
+                self.downloading_files.remove(filename)
+                return
                 
             # Intialise seeder availability status.
             for seeder in seeders:
@@ -406,7 +425,7 @@ class Client:
                 self.sharing_files.add(filename)
                 
                 # Register update with tracker to inform that we're now seeding this file.
-                # self.update_tracker_files()
+                self.update_tracker_files()
             
             except Exception as e:
                 print(f"Error adding file to shared directory: {e}")
@@ -430,11 +449,10 @@ class Client:
                 }
                 request_message = f"UPDATE_FILES {username} {json.dumps(file_data)}"
                 
-                with self.lock:
-                    # Send the request to the tracker.
-                    self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
-                    response_message, _ = self.udp_socket.recvfrom(1024)
-                    print(f"Tracker updated with new files: {response_message.decode('utf-8')}")
+                # Send the request to the tracker.
+                self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+                response_message, _ = self.udp_socket.recvfrom(1024)
+                print(f"Tracker updated with new files: {response_message.decode('utf-8')}")
         except Exception as e:
             print(f"Error updating tracker with files: {e}")
             
@@ -574,12 +592,11 @@ class Client:
         Save metadata to the shared_files.json file.
         This ensures that changes to the shared files are stored.
         """
-        with self.lock:
-            # Write the changes to a temporary file before the actual file to race conditions,
-            temp_file = self.metadata_file + ".tmp"
-            with open(temp_file, "w") as file:
-                json.dump({"files": self.file_chunks}, file, indent=4)
-            os.replace(temp_file, self.metadata_file)
+        # Write the changes to a temporary file before the actual file to race conditions,
+        temp_file = self.metadata_file + ".tmp"
+        with open(temp_file, "w") as file:
+            json.dump({"files": self.file_chunks}, file, indent=4)
+        os.replace(temp_file, self.metadata_file)
             
     def generate_file_metadata(self, file_path: str, chunk_size: int = 1024 * 1024):
         """
@@ -1071,8 +1088,8 @@ def main() -> None:
         os.makedirs('logs')
         
     # Configure logging for file downloads.
-        logging.basicConfig(filename='logs/download.log', level=logging.INFO,       
-            format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(filename='logs/download.log', level=logging.INFO,       
+        format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         
     try:    
         # Clear the shell and initialise the client instance.
