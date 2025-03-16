@@ -13,17 +13,18 @@ import os
 
 class Client:
     """
-    Pytorrent Client Implementation.
+    PyTorrent Client Implementation
 
-    The client can function as either a leecher or a seeder based on its state.
-    - As a leecher, it downloads file chunks from seeders and shares them with other leechers.
-    - As a seeder, it hosts file chunks and serves them to leechers.
+    This client is capable of functioning simultaneously as both a leecher and a seeder, supporting peer-to-peer file sharing.
+
+    The client operates in two modes:
+    - Leecher: In this mode, the client downloads files from peers.
+    - Seeder: In seeder mode, the client shares its own files while continuing to download files from peers.
+    - Downloaded files are reshared (re-seeding) to ensure content availability and contribute to the network.
 
     :author: Siyabonga Madondo, Ethan Ngwetjana, Lindokuhle Mdlalose
     :version: 17/03/2025
     """
-    # GET METADATA FROM TRACKER
-    
     # Defining a few class-wide variables for access throughout class.
     client = None
     username = "unknown"
@@ -37,7 +38,7 @@ class Client:
         :param tcp_port: The TCP port on which the leecher listens for incoming file requests.
         :param state: The status of the client, either a 'seeder' or 'leecher' with default state being a leecher.
         :param tracker_timeout: Time (in seconds) to wait before considering the tracker as unreachable.
-        :param file_path: Path to the directory containing files to be shared..
+        :param file_dir: Path to the directory containing files to be shared.
         """
         # Configuring the client's details.
         self.host = host
@@ -51,6 +52,11 @@ class Client:
         # Dictionary to store file metadata, a variable for the shared data path and a Lock for thread safety.
         self.file_chunks = {}
         self.lock = Lock()
+        
+        # Track files being downloaded and files being shared.
+        self.is_sharing = len(self.file_chunks) > 0
+        self.downloading_files = set()
+        self.sharing_files = set()
         
         # Ensure that the shared directory exists and create it if it does not exists.
         os.makedirs(self.file_dir, exist_ok = True)
@@ -77,6 +83,11 @@ class Client:
         # Scan the shared directory for files and add it to the shared_file.json meta file.
         self.scan_directory_for_files()
         
+        # Track seeder availability for disconnection scenarios.
+        self.seeder_availability = {}
+        self.seeder_recovery_thread = Thread(target=self.recover_unavailable_seeders, daemon=True)
+        self.seeder_recovery_thread.start()
+        
     def handle_connections(self) -> None:
         """
         Handles incoming TCP connections using a selector.
@@ -89,7 +100,7 @@ class Client:
                 callback = key.data
                 callback(key.fileobj)
                 
-    def handle_tcp_connection(self, peer_socket: socket):
+    def handle_tcp_request(self, peer_socket: socket):
         """
         Handles incoming TCP connections from peers requesting file chunks or metadata.
         
@@ -98,8 +109,13 @@ class Client:
         try:
             # Receive the request from the peer.
             request = peer_socket.recv(1024).decode('utf-8')
-
-            if request.startswith("REQUEST_CHUNK"):
+            
+            # Check the request type and process is accordingly.
+            if request.startswith("PING"):
+                # Send PONG response for availability checks
+                peer_socket.sendall(b"PONG")
+                
+            elif request.startswith("REQUEST_CHUNK"):
                 # Parse the request to get the filename and chunk ID.
                 _, filename, chunk_id = request.split()
                 chunk_id = int(chunk_id)
@@ -113,6 +129,7 @@ class Client:
                 else:
                     # Send an error message if the chunk is not found.
                     peer_socket.sendall(b"CHUNK_NOT_FOUND")
+                    
             elif request.startswith("REQUEST_METADATA"):
                 # Parse the request to get the filename
                 _, filename = request.split()
@@ -133,18 +150,19 @@ class Client:
             self.selector.unregister(peer_socket)
             peer_socket.close()
      
-    def accepted_connection(self, server_socket: socket):
+    def accepted_connection(self, peer_socket: socket):
         """
         Accepts a new connection and registers it with the selector.
         """
-        connection, address = server_socket.accept()
+        connection, address = peer_socket.accept()
         print(f"Accepted connection from {address}")
         connection.setblocking(False)
-        self.selector.register(connection, selectors.EVENT_READ, self.handle_tcp_connection)       
+        self.selector.register(connection, selectors.EVENT_READ, self.handle_tcp_request)       
         
-    def download_file(self, filename: str, seeder_address: tuple, output_dir: str = "user/downloads"):
+    def download_file(self, filename: str, output_dir: str = "user/downloads"):
         """
         Downloads a file from multiple seeders by requesting chunks in parallel using a ThreadPoolExecutor.
+        Also adds the downloaded file to shared files for re-seeding if the user choses to seed the file.
         """
         with self.lock:
             # Ensure the output directory exists.
@@ -161,22 +179,45 @@ class Client:
                 choice = input("Do you want to download it again? (y/n): ").lower()
                 if choice != 'y':
                     return
+                
+            # Add to downloading files set.
+            self.downloading_files.add(filename)
             
             # Query tracker for additional seeders for this file.
             response = self.query_tracker_for_peers(filename)
             if not response:
                 print(f"Failed to get peer information for {filename}.")
+                self.downloading_files.remove(filename)
                 return
             
             # Get list of all available seeders.
             seeders = response.get("seeders", [])
             if not seeders:
                 print(f"No seeders available for file '{filename}.")
+                self.downloading_files.remove(filename)
+                return
+                
+            # Intialise seeder availability status.
+            for seeder in seeders:
+                seeder_tuple = tuple(seeder)
+                if seeder_tuple not in self.seeder_availability:
+                    self.seeder_availability[seeder_tuple] = True
                     
-            # Retrieve the metadata of a specific file from the first seeder.
-            seeder_metadata = self.request_file_metadata(filename, tuple(seeders[0])) if seeders else None
+            # Try each seeder for metadata until one succeeds.
+            seeder_metadata = None
+            for seeder in seeders:
+                if self.seeder_availability.get(tuple(seeder), True):
+                    seeder_metadata = self.request_file_metadata(filename, tuple(seeder))
+                    if seeder_metadata:
+                        break
+                    else:
+                        # Mark this seeder as unavailable.
+                        self.seeder_availability[tuple(seeder)] = False
+              
+            # Print error message if metadata could not be retrieved.          
             if not seeder_metadata:
-                print(f"Could not retrieve metadata for {filename}")
+                print(f"Could not retrieve metadata for {filename} from any seeder")
+                self.downloading_files.remove(filename)
                 return
             
             # Print some debugging information.
@@ -191,7 +232,7 @@ class Client:
             # Intialise folder for downloaded chunks.
             downloaded_chunks = {}
             
-            # Start parallel download.
+            # Start parallel downloads from different seeders.
             max_workers = min(len(seeders), os.cpu_count() * 2 or 4)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Create a list of download tasks.
@@ -215,10 +256,19 @@ class Client:
             # Verify download completion.
             if len(downloaded_chunks) != total_chunks:
                 print(f"Download incomplete: {len(downloaded_chunks)}/{total_chunks} chunks downloaded")
+                self.downloading_files.remove(filename)
                 return
+            
+            # Remove from downloading files
+            self.downloading_files.remove(filename)
             
             # Reassemble the file on the leecher side.
             self.reassemble_file(filename, output_dir, temp_dir, downloaded_chunks)
+            
+            # Determine if the user would like to re-seed the file they just downloaded.
+            choice = input("Would you like to share this file with other users by seeding? (y/n): ").lower()
+            if choice == 'y':
+                self.add_file_to_shared(filename, output_file_path)
         
     def download_chunk_worker(self, filename, seeder, chunk_queue, temp_dir, downloaded_chunks, seeder_metadata):
         """Helper method to download chunks from a seeder."""
@@ -229,19 +279,26 @@ class Client:
                 return
 
             # Retrive the chunk size from the metadata from the seeder.
-            print(f"Requesting chunk {chunk_id} from {seeder}")
-            chunk_size = seeder_metadata["chunks"][chunk_id]["size"]
-            chunk_data = self.request_chunk(filename, chunk_id, chunk_size, seeder)
-
-            if chunk_data:
-                chunk_path = os.path.join(temp_dir, f"{filename}.part{chunk_id}")
-                with open(chunk_path, "wb") as chunk_file:
-                    chunk_file.write(chunk_data)
+            if self.seeder_availability.get(tuple(seeder), True):
+                print(f"Requesting chunk {chunk_id} from {seeder}")
+                chunk_size = seeder_metadata["chunks"][chunk_id]["size"]
+                chunk_data = self.request_chunk(filename, chunk_id, chunk_size, seeder)
+                
+                # Write downloaded chunks to the .tmp file before assembling the file.
+                if chunk_data:
+                    chunk_path = os.path.join(temp_dir, f"{filename}.part{chunk_id}")
+                    with open(chunk_path, "wb") as chunk_file:
+                        chunk_file.write(chunk_data)
  
-                downloaded_chunks[chunk_id] = chunk_path
-                print(f"Progress: {len(downloaded_chunks)}/{len(downloaded_chunks) + chunk_queue.qsize()} chunks downloaded")
+                    downloaded_chunks[chunk_id] = chunk_path
+                    print(f"Progress: {len(downloaded_chunks)}/{len(downloaded_chunks) + chunk_queue.qsize()} chunks downloaded")
+                else:
+                    # Mark the seeder as unavailable.
+                    self.seeder_availability[tuple(seeder)] = False
+                    print(f"Seeder {seeder} is unavailable. Trying another seeder...")
+                    chunk_queue.put(chunk_id)
             else:
-                # Requeue failed chunk
+                print(f"Skipping unavailble seeder: {seeder}")
                 chunk_queue.put(chunk_id)
 
     def request_chunk(self, filename: str, chunk_id: int, chunk_size: int, seeder_address: tuple) -> bytes:
@@ -297,6 +354,92 @@ class Client:
         finally:
             sock.close()
             
+    def add_file_to_shared(self, filename: str, file_path: str):
+        """
+        Add a downloaded file to the shared files to enable re-seeding.
+        
+        :param filename: Name of the file.
+        :param file_path: Path to the downloaded file.
+        """
+        # Copy the file to the shared directory if it's not already there
+        shared_file_path = os.path.join(self.file_dir, filename)
+        
+        if file_path != shared_file_path: 
+            try:
+                # Make sure the shared directory exists
+                os.makedirs(self.file_dir, exist_ok=True)
+                
+                # Copy the file to the shared directory.
+                with open(file_path, 'rb') as src_file:
+                    with open(shared_file_path, 'wb') as dest_file:
+                        dest_file.write(src_file.read())
+                
+                shell.type_writer_effect(f"{shell.BRIGHT_GREEN}File '{filename}' has been added to your shared files. You are now seeding this file!{shell.RESET}")
+                
+                # Generate metadata for the new file.
+                self.file_chunks[filename] = self.generate_file_metadata(shared_file_path)
+                self.save_metadata()
+                
+                # Add file to sharing_files set.
+                self.sharing_files.add(filename)
+                
+                # Register update with tracker to inform that we're now seeding this file.
+                self.update_tracker_files()
+            
+            except Exception as e:
+                print(f"Error adding file to shared directory: {e}")
+            
+    def update_tracker_files(self):
+        """
+        Updates the tracker with current shared files list.
+        """
+        global username
+        try:
+            if self.file_chunks:
+                file_data = {
+                    "files": [
+                        {
+                            "filename": filename, 
+                            "size": metadata["size"],
+                            "checksum": metadata["checksum"]
+                        }
+                        for filename, metadata in self.file_chunks.items()
+                    ]
+                }
+                request_message = f"UPDATE_FILES {username} {json.dumps(file_data)}"
+                
+                with self.lock:
+                    # Send the request to the tracker.
+                    self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+                    response_message, _ = self.udp_socket.recvfrom(1024)
+                    print(f"Tracker updated with new files: {response_message.decode('utf-8')}")
+        except Exception as e:
+            print(f"Error updating tracker with files: {e}")
+            
+    def recover_unavailable_seeders(self):
+        """Periodically recheck unavailable seeders and mark them as available if they respond."""
+        while True:
+            time.sleep(60)  # Check every 60 seconds
+            unavailable_seeders = [seeder for seeder, available in self.seeder_availability.items() if not available]
+            
+            if unavailable_seeders:
+                print(f"Checking {len(unavailable_seeders)} unavailable seeders for recovery...")
+                
+            for seeder in unavailable_seeders:
+                try:
+                    sock = socket(AF_INET, SOCK_STREAM)
+                    sock.connect((seeder[0], 12000))
+                    sock.settimeout(5)
+                    sock.sendall(b"PING")
+                    response = sock.recv(1024)
+                    if response == b"PONG":
+                        self.seeder_availability[seeder] = True
+                        print(f"Seeder {seeder} is back online.")
+                except Exception as e:
+                    print(f"Seeder {seeder} is still unavailable: {e}")
+                finally:
+                    sock.close() 
+            
     def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
         """
         Retrieves a specific chunk of a file from disk.
@@ -345,7 +488,7 @@ class Client:
             # Create a TCP socket and connect to the seeder
             sock = socket(AF_INET, SOCK_STREAM)
             print(seeder_address[0])
-            sock.connect((seeder_address[0], 12000))  # THIS LINE SAYS CONNECTION REFUSED!
+            sock.connect((seeder_address[0], 12000))
             sock.settimeout(10)  # Set a timeout for the request
             
             # Send the request for the file metadata
@@ -354,7 +497,6 @@ class Client:
             
             # Receive the metadata
             metadata_data = sock.recv(1024 * 10)  # Increased buffer size for metadata
-            print(metadata_data)
             
             if metadata_data == b"FILE_NOT_FOUND" or metadata_data == b"METADATA_NOT_AVAILABLE":
                 print(f"Metadata not available for file {filename} from {seeder_address}")
@@ -455,7 +597,6 @@ class Client:
                 
         return metadata
 
-    # TODO: Add functionality for deleted files.
     def scan_directory_for_files(self) -> list:
         """
         Scans the shared directory for files and updates metadata.
@@ -474,12 +615,38 @@ class Client:
                     # Check if the file has been modified or corrupted using checksums.
                     existing_checksum = self.file_chunks[filename]["checksum"]
                     new_checksum = self.generate_file_metadata(file_path)["checksum"]
+                    
                     # Check if the file has been modified, and generate new file metadata.
                     if existing_checksum != new_checksum:
                         print(f"Updating modified file: {filename}")
                         self.file_chunks[filename] = self.generate_file_metadata(file_path)           
         # Save updated metadata
         self.save_metadata()
+        
+    def list_shared_files(self) -> None:
+        """
+        Lists all files that this client is currently sharing.
+        """
+        shell.type_writer_effect(f"{shell.WHITE}Checking what files you're currently sharing...{shell.RESET}", 0.04)
+        
+        # Ensure metadata is up-to-date
+        self.load_metadata()
+        
+        if not self.file_chunks:
+            shell.type_writer_effect(f"{shell.BRIGHT_YELLOW}You're not sharing any files at the moment.{shell.RESET}")
+            return
+        
+        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}You're currently sharing the following files:{shell.RESET}")
+        print("\n📤 Your Shared Files:")
+        
+        for filename, metadata in self.file_chunks.items():
+            file_size_mb = metadata["size"] / (1024 * 1024)
+            emoji = shell.get_random_emoji()
+            print(f"- Filename: {filename}")
+            print(f"- Size: {file_size_mb:.2f} MB")
+            print(f"- Status: {emoji} Sharing")
+            print(f"- Chunks: {len(metadata['chunks'])}")
+            print()
       
     def welcoming_sequence(self) -> None:
         """
@@ -555,17 +722,18 @@ class Client:
             # If shared_files.json exists and has data, register as seeder else register as a leecher.
             if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
                 self.state = "seeder"
-                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have files available for sharing. Registering as a seeder!{shell.RESET}")
+                self.load_metadata()
+                sharing_count = len(self.file_chunks)
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have files {sharing_count} file(s) available for sharing. Registering you as a seeder!{shell.RESET}")
             else:
                 self.state = "leecher"
-                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You have no files available for sharing. Registering as a leecher!{shell.RESET}")
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You don't have any files available for sharing yet. Registering you as a leecher!{shell.RESET}")
          
             # Register this client with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
             shell.type_writer_effect(f"{client.register_with_tracker()}")
             
             # Start the KEEP_ALIVE thread.
-            # Should only start if registration is successful!
             self.keep_alive_thread = Thread(target=self.keep_alive, daemon = True)
             self.keep_alive_thread.start()
             
@@ -789,39 +957,37 @@ class Client:
         - Queries the tracker for seeders of the selected file.
         - Downloads the file from one of the seeders.
         """
-        # try:
-        shell.type_writer_effect(f"{shell.WHITE}Let's start the file downloading process ... {shell.get_random_emoji()}{shell.RESET}\n")
-        
-        # Querying the tracker for available files.
-        self.get_available_files()
-        shell.print_line()
-        
-        # Prompt the user to select a file to download.
-        filename = input("Enter the name of the file you want to download:\n").strip()
-        if not filename:
-            print("Filename cannot be empty. Please try again.")
+        try:
+            shell.type_writer_effect(f"{shell.WHITE}Let's start the file downloading process ... {shell.get_random_emoji()}{shell.RESET}\n")
             
-        # Query the tracker for seeders of the selected file.
-        response = self.query_tracker_for_peers(filename)
-        if not response:
-            print(f"File '{filename}' not found or no seeders available.")
-            return
-        
-        # Returning a list of seeders for the file.
-        seeders = response.get("seeders", [])
-        if not seeders:
-            print(f"No seeders available for file '{filename}'.")
-            return
-        
-        seeder_address = tuple(seeders[0])  # Select the first seeder
-        shell.type_writer_effect(f"Downloading '{filename}' ...")
-        
-        # Step 5: Call the download_file method to start the download.
-        self.download_file(filename, seeder_address)
-        
-        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Download of '{filename}' completed successfully.{shell.RESET}")
-        # except Exception as e:
-        #     print(f"Error handling downloads: {e}")
+            # Querying the tracker for available files.
+            self.get_available_files()
+            shell.print_line()
+            
+            # Prompt the user to select a file to download.
+            filename = input("Enter the name of the file you want to download:\n").strip()
+            if not filename:
+                print("Filename cannot be empty. Please try again.")
+                
+            # Query the tracker for seeders of the selected file.
+            response = self.query_tracker_for_peers(filename)
+            if not response:
+                print(f"File '{filename}' not found or no seeders available.")
+                return
+            
+            # Returning a list of seeders for the file.
+            seeders = response.get("seeders", [])
+            if not seeders:
+                print(f"No seeders available for file '{filename}'.")
+                return
+            
+            # Step 5: Call the  method to start the download.
+            shell.type_writer_effect(f"Downloading '{filename}' ...")
+            self.download_file(filename)
+            
+            shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Download of '{filename}' completed successfully.{shell.RESET}")
+        except Exception as e:
+            print(f"Error handling downloads: {e}")
     
     def send_keep_alive(self) -> None:
         """
@@ -876,7 +1042,7 @@ def main() -> None:
         
     try:    
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(gethostbyname(gethostname()), 17383, 12006)
+        client = Client(gethostbyname(gethostname()), 17383, 12001)
         
         shell.clear_shell() 
         shell.print_logo()
@@ -901,7 +1067,10 @@ def main() -> None:
                         client.get_active_peer_list()
                         shell.print_line()
                     elif choice == 2:
-                        client.get_available_files()
+                        if self.state == "seeder":
+                            client.list_shared_files()
+                        else:
+                            shell.type_writer_effect("Oops! Looks like you have no files to share just yet. 📁🙂")
                         shell.print_line()
                     elif choice == 3:
                         client.handle_downloads()
