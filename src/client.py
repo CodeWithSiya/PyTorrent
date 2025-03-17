@@ -1042,6 +1042,8 @@ class Client:
                     print(f"- Filename: {filename}")
                     print(f"- Size: {size / (1024 * 1024):.2f} MB")
                     print(f"- Status: {emoji} Available\n")
+                    
+            shell.type_writer_effect(f"{shell.BRIGHT_YELLOW}Type 'return' to go back to main menu{shell.RESET}")
         
         except json.JSONDecodeError:
             print("Error: Received an invalid JSON response from the tracker.")
@@ -1094,6 +1096,11 @@ class Client:
             filename = input("Enter the name of the file you want to download:\n").strip()
             if not filename:
                 print("Filename cannot be empty. Please try again.")
+                return
+                
+            if filename.lower() == "return":
+                shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                return
                 
             # Query the tracker for seeders of the selected file.
             response = self.query_tracker_for_peers(filename)
@@ -1285,6 +1292,7 @@ def main() -> None:
                         shell.print_line()
                     elif choice == 4:
                         client.change_username()
+                        shell.print_line()
                     elif choice == 5:
                         client.disconnect_from_tracker()
                         break
