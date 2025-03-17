@@ -1144,7 +1144,6 @@ class Client:
     def change_username(self):
         """
         Changes the username of the client. Also allows them to reset their data.
-        # MAKE READABLE
         """
         
         global username
@@ -1153,18 +1152,21 @@ class Client:
         shell.type_writer_effect(f"{shell.BLUE}Your username cannot be empty or have any spaces in it 🙅‍♂️ {shell.RESET}", 0.04)
         shell.type_writer_effect(f"{shell.WHITE}Enter your new username:{shell.RESET}", 0.04)
         
+        # Get new username
         new_username = input().strip()
         
         self.lock.acquire()
         
         try:
-            
+            # new username must not have and cannot be empty
             if new_username and " " not in new_username:
                 self.udp_socket.settimeout(self.tracker_timeout)
+                # Send request to tracker to change the username on the active list
                 request_message = f"CHANGE_USERNAME {username} {new_username} {(self.host, self.udp_port)}"
                 self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
                 response_message, peer_address = self.udp_socket.recvfrom(1024)
                 
+                # when correct response is received, change username on the config file
                 if (response_message.decode() == "USERNAME_CHANGED"):
                     with open("config/config.txt", "w") as file:
                 
@@ -1172,8 +1174,7 @@ class Client:
                     
                     username = new_username
                     shell.type_writer_effect(f"{shell.GREEN}Username for {peer_address} successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
-                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-                    
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)   
                 else:
                     shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
                     shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
@@ -1228,7 +1229,7 @@ def main() -> None:
         shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Getting your files ready. Please wait...{shell.RESET}")
         
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(ip_address, int(port), 12001) 
+        client = Client(ip_address, int(port), 12000) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
