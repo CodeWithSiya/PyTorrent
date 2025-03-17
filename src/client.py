@@ -515,7 +515,7 @@ class Client:
                 finally:
                     sock.close() 
             
-    def get_chunk(self, filename: str, chunk_id: int, chunk_size: int = 1024 * 1024) -> bytes:
+    def get_chunk(self, filename: str, chunk_id: int) -> bytes:
         """
         Retrieves a specific chunk of a file from disk.
         
@@ -526,27 +526,37 @@ class Client:
         """
         # Check if the file exists in the file_chunks dictionary.
         if filename not in self.file_chunks:
-            print(f"File '{filename} not found in shared files.")
+            logging.error(f"File '{filename}' not found in shared files.")
             return None
         
-        # Get the full file path and chunk metadata
-        file_path = os.path.join(self.file_dir, filename) 
+        # Ensure chunk_id is valid.
+        chunks = self.file_chunks[filename]["chunks"]
+        if chunk_id >= len(chunks):
+            logging.warning(f"Chunk ID {chunk_id} out of range for file '{filename}'")
+            return None
+        
+        # Get the full file path and chunk metadata.
+        file_path = os.path.join(self.file_dir, filename)
         chunk_metadata = self.file_chunks[filename]["chunks"][chunk_id]
         chunk_size = chunk_metadata["size"]
-        
+
         try:
             with open(file_path, "rb") as file:
-                file.seek(chunk_id * chunk_size)  # Move to the start of the chunk.
-                chunk_data = file.read(chunk_size)  # Read and return the chunk data.
+                # Calculate start position based on the sum of sizes of preceding chunks.
+                start_position = 0
+                for i in range(chunk_id):
+                    start_position += chunks[i]["size"]
+                    
+                file.seek(start_position)  # Move to the start of the chunk
+                chunk_data = file.read(chunk_size)  # Read the chunk data
                 
-                # Verify checksum for that chunk.
+                # Verify checksum for that chunk
                 if "checksum" in chunk_metadata:
                     actual_checksum = hashlib.sha256(chunk_data).hexdigest()
                     if actual_checksum != chunk_metadata["checksum"]:
-                        print(f"Warning: Checksum mismatch for chunk {chunk_id} of file '{filename}'")
-                        
+                        logging.warning(f"Warning: Checksum mismatch for chunk {chunk_id} of file '{filename}'")
+                    logging.info(f"Checksum match for chunk {chunk_id} of file '{filename}'")    
                 return chunk_data
-                         
         except Exception as e:
             print(f"Error reading chunk {chunk_id} from file '{filename}': {e}")
             return None
@@ -617,8 +627,6 @@ class Client:
                 with open(chunk_path, "rb") as chunk_file:
                     output_file.write(chunk_file.read())
                 os.remove(chunk_path)
-                
-        # Verify the file integrity using checksums.
 
         os.rmdir(temp_dir)
         logging.info(f"Download complete: {output_file_path}")
@@ -664,7 +672,7 @@ class Client:
             chunk = file.read(chunk_size)
             while chunk:
                 sha256.update(chunk)
-                chunk = file.read(chunk_size)
+                chunk = file.read(chunk_size)             
         # Store the final checksum hash in the metadata.
         metadata["checksum"] = sha256.hexdigest()
         
@@ -846,8 +854,7 @@ class Client:
         # Check the state of the client and create an appropriate request message.
         if self.state == "leecher":
             request_message = f"REGISTER leecher {username}"
-            
-                        
+                              
         else:
             # If the client is a seeder, include the list of shared files.
             file_data = {
@@ -1188,8 +1195,7 @@ class Client:
             
         self.lock.release()
             
-            
-            
+        
 def main() -> None:
     """
     Main method which runs the PyTorrent client interface.
@@ -1229,7 +1235,7 @@ def main() -> None:
         shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Getting your files ready. Please wait...{shell.RESET}")
         
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(ip_address, int(port), 12000) 
+        client = Client(ip_address, int(port), 12001) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
