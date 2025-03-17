@@ -1172,11 +1172,11 @@ class Client:
         Changes the username of the client.
         """ 
         global username
-        shell.type_writer_effect(f"{shell.WHITE}Let's change your username ... {shell.random_emoji}{shell.RESET}\n", 0.04)
-        shell.type_writer_effect(f"{shell.BLUE}Your username cannot be empty or have any spaces in it! 🙅 {shell.RESET}", 0.04)
+        shell.type_writer_effect(f"{shell.WHITE}Let's change your username ... {shell.get_random_emoji()}{shell.RESET}", 0.04)
+        shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Your username cannot be empty or have any spaces in it! 🙅 {shell.RESET}", 0.04)
         
         # Get new username from the user
-        shell.type_writer_effect(f"Enter your new username: ", 0.04)
+        shell.type_writer_effect(f"\nEnter your new username: ", 0.04)
         new_username = input().strip()
         
         self.lock.acquire() 
