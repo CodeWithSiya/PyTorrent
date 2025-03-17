@@ -1,4 +1,5 @@
 from getch import getch, pause
+import threading
 import random
 import shutil
 import time
@@ -21,6 +22,9 @@ PYTORRENT_LOGO = """
 \/     \__, \/   \___/|_|  |_|  \___|_| |_|\__|
        |___/                                   
 """
+
+# Lock for terminal output synchronization.
+terminal_lock = threading.Lock()
 
 # Constants which define the different colours and aspects used in the UI.
 BOLD = "\033[1m"
@@ -157,14 +161,15 @@ def type_writer_effect(text:str, delay: int = 0.05, newline: bool = True) -> Non
     :param text: The text to display.
     :param delay: The delay between each character (in seconds).
     """
-    # Print one character at a time with a short delay between characters, and flush stout after each character.
-    for char in text:
-        sys.stdout.write(char) 
-        sys.stdout.flush()  
-        time.sleep(delay)  
-    # Only print a newline if nessesary.
-    if newline:
-        print()
+    with terminal_lock:
+        # Print one character at a time with a short delay between characters, and flush stout after each character.
+        for char in text:
+            sys.stdout.write(char) 
+            sys.stdout.flush()  
+            time.sleep(delay)  
+        # Only print a newline if nessesary.
+        if newline:
+            print()
         
 def hit_any_key_to_continue() -> None:
     """
