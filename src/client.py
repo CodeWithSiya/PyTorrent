@@ -872,28 +872,7 @@ class Client:
             # Receive a response message from the tracker. -> Double Check.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
             response_message = response_message.decode()
-            
-            # Check the state of the client and create an appropriate request message.
-            if self.state == "leecher":
-                request_message = f"REGISTER leecher {username}"
-            else:
-                # If the client is a seeder, include the list of shared files.
-                file_data = {
-                    "files": [
-                        {
-                            "filename": filename, 
-                            "size": metadata["size"],
-                            "checksum": metadata["checksum"]
-                        }
-                        for filename, metadata in self.file_chunks.items()
-                    ]
-                }
-                # Convert file_data to JSON and include it in the request message
-                request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
-                     
-            # Send a request message to the tracker.
-            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
-            
+
             # Extract the status code (first three characters) from the response.
             status_code = response_message[:3]
             
@@ -915,12 +894,6 @@ class Client:
                 shell.type_writer_effect(f"Unexpected response: {response_message}")
                 shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
                 sys.exit(1)
-                
-            try:
-                # Receive a response message from the tracker.
-                response_message, peer_address = self.udp_socket.recvfrom(1024)
-                response_message = response_message.decode('utf-8')
-                
         except Exception as e:
             # Tracker does not respond within the timeout time.
             shell.type_writer_effect(f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later! 😱{shell.RESET}")
@@ -1177,10 +1150,7 @@ class Client:
         global username
         
         shell.type_writer_effect(f"{shell.WHITE}Changing your username...{shell.RESET}", 0.04)
-        print("")
         shell.type_writer_effect(f"{shell.BLUE}Your username cannot be empty or have any spaces in it 🙅‍♂️ {shell.RESET}", 0.04)
-        print("")
-        
         shell.type_writer_effect(f"{shell.WHITE}Enter your new username:{shell.RESET}", 0.04)
         
         new_username = input().strip()
@@ -1190,13 +1160,9 @@ class Client:
         try:
             
             if new_username and " " not in new_username:
-                
                 self.udp_socket.settimeout(self.tracker_timeout)
-                
                 request_message = f"CHANGE_USERNAME {username} {new_username} {(self.host, self.udp_port)}"
-                
                 self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
-                
                 response_message, peer_address = self.udp_socket.recvfrom(1024)
                 
                 if (response_message.decode() == "USERNAME_CHANGED"):
@@ -1212,7 +1178,6 @@ class Client:
                     shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
                     shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
             else:
-                
                 shell.type_writer_effect(f"{shell.RED}Incorrect input. Your username cannot be empty or have any spaces in it❌{shell.RESET}", 0.04)
                 shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
                         
@@ -1259,6 +1224,8 @@ def main() -> None:
             elif not port.isdigit():
                 shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Port number must be a valid integer. Please enter a valid port number:{shell.RESET}")
             port = input().strip()
+        
+        shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Getting your files ready. Please wait...{shell.RESET}")
         
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
         client = Client(ip_address, int(port), 12001) 
