@@ -141,6 +141,10 @@ class Tracker:
             self.handle_ping_request(peer_address)
         elif request_type == "GET_PEERS":
             self.handle_get_peers_request(split_request, peer_address)
+        elif request_type == "CHANGE_USERNAME":
+            username = split_request[1]
+            new_username = split_request[2]
+            self.change_username(username, new_username, peer_address)
         elif request_type == "UPDATE_FILES":
             self.handle_update_files_request(split_request, peer_address)
         else:
@@ -197,9 +201,7 @@ class Tracker:
         :param peer_address: The address of the peer that sent the request.
         :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
         :param files: A dictionary of files the peer has (if it's a seeder).
-        """
-        response_message = "500 Internal Server Error: Unexpected error occurred."
-        
+        """        
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
@@ -230,6 +232,24 @@ class Tracker:
                 response_message = "403 Forbidden: Client limit reached, registration denied."
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
         self.tracker_socket.sendto(response_message.encode(), peer_address)
+        
+        
+    def change_username(self, username, new_username, peer_address):
+        """
+        Change the username on the active list when a user changes their username
+        
+        :param: username: Old username of the client
+        :param: new_username: The username the client wants to change to
+        :param: addr: The ip_address of the client
+        """
+        for peer_address_key, peer_info in self.active_peers.items():
+            if peer_address_key == peer_address:  
+                if peer_info["username"] == username:  
+                    peer_info["username"] = new_username 
+                    response_message = "USERNAME_CHANGED"
+                    self.tracker_socket.sendto(response_message.encode(), peer_address)
+                    break
+
         
     def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
         """
@@ -300,6 +320,8 @@ class Tracker:
                          
         print(f"{shell.BRIGHT_MAGENTA}200 OK: Client '{username}' with address {peer_address} successfully obtained a list of active clients.{shell.RESET}")
         self.tracker_socket.sendto(response.encode(), peer_address)
+        
+    
         
     def list_available_files(self, peer_address: tuple) -> None:
         """

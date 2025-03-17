@@ -781,7 +781,7 @@ class Client:
                 
             # Register this client as a leecher with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
-            shell.type_writer_effect(f"{client.register_with_tracker()}")
+            client.register_with_tracker()
             
             # Start the KEEP_ALIVE thread.
             self.keep_alive_thread = Thread(target=self.keep_alive, daemon = True)
@@ -822,7 +822,7 @@ class Client:
          
             # Register this client with the tracker.
             shell.type_writer_effect(f"\nPlease wait while we set up things for you...")
-            shell.type_writer_effect(f"{client.register_with_tracker()}")
+            client.register_with_tracker()
             
             # Start the KEEP_ALIVE thread.
             self.keep_alive_thread = Thread(target=self.keep_alive, daemon = True)
@@ -842,55 +842,64 @@ class Client:
         :return: Message retrieved from the tracker.
         """
         global username
+        # try:
+        # Check the state of the client and create an appropriate request message.
+        if self.state == "leecher":
+            request_message = f"REGISTER leecher {username}"
+            
+                        
+        else:
+            # If the client is a seeder, include the list of shared files.
+            file_data = {
+                "files": [
+                    {
+                        "filename": filename, 
+                        "size": metadata["size"]
+                    }
+                    for filename, metadata in self.file_chunks.items()
+                ]
+            }
+            # Convert file_data to JSON and include it in the request message
+            request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
+            
+        # Send a request message to the tracker.
+        self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+        
+        # Set a timeout for receiving the response from the tracker.
+        self.udp_socket.settimeout(self.tracker_timeout)
+        
         try:
-            # Check the state of the client and create an appropriate request message.
-            if self.state == "leecher":
-                request_message = f"REGISTER leecher {username}"
-            else:
-                # If the client is a seeder, include the list of shared files.
-                file_data = {
-                    "files": [
-                        {
-                            "filename": filename, 
-                            "size": metadata["size"],
-                            "checksum": metadata["checksum"]
-                        }
-                        for filename, metadata in self.file_chunks.items()
-                    ]
-                }
-                # Convert file_data to JSON and include it in the request message
-                request_message = f"REGISTER seeder {username} {json.dumps(file_data)}"
-                     
-            # Send a request message to the tracker.
-            self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+            # Receive a response message from the tracker. -> Double Check.
+            response_message, peer_address = self.udp_socket.recvfrom(1024)
+            response_message = response_message.decode()
+
+            # Extract the status code (first three characters) from the response.
+            status_code = response_message[:3]
             
-            # Set a timeout for receiving the response from the tracker.
-            self.udp_socket.settimeout(self.tracker_timeout)
-            
-            try:
-                # Receive a response message from the tracker.
-                response_message, peer_address = self.udp_socket.recvfrom(1024)
-                response_message = response_message.decode('utf-8')
-                
-                # Extract the status code (first three characters) from the response.
-                status_code = response_message[:3]
-                
-                # Handle the respone based on the status code.
-                if status_code == "201":
-                    if self.state == "leecher":
-                        return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}"
-                    else:
-                        return f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2 : response_message.find('seeder') + 6]}!{shell.RESET}"
-                elif status_code == "400":
-                    return f"Error: {response_message[4:]}"
-                elif status_code == "403":
-                    return f"Registration Denied: {response_message[4:]}"
+            # Handle the respone based on the status code.
+            if status_code == "201":
+                if self.state == "leecher":
+                    shell.type_writer_effect(f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2:]}!{shell.RESET}")
                 else:
-                    return f"Unexpected response: {response_message}"
-            except socket.timeout:
-                # Tracker does not respond within the timeout time.
-                return f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later!{shell.RESET}"
+                    shell.type_writer_effect(f"{shell.BRIGHT_GREEN}{response_message[response_message.find(':') + 2 : response_message.find('seeder') + 6]}!{shell.RESET}")
+            elif status_code == "400":
+                shell.type_writer_effect(f"Error: {response_message[4:]}")
+                shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+                sys.exit(1)
+            elif status_code == "403":
+                shell.type_writer_effect(f"Registration Denied: {response_message[4:]}")
+                shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+                sys.exit(1)
+            else:
+                shell.type_writer_effect(f"Unexpected response: {response_message}")
+                shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+                sys.exit(1)
         except Exception as e:
+            # Tracker does not respond within the timeout time.
+            shell.type_writer_effect(f"{shell.BRIGHT_RED}Tracker seems to be offline. Please try again later! 😱{shell.RESET}")
+            shell.type_writer_effect(f"{shell.BOLD}{shell.BRIGHT_MAGENTA}Exiting...{shell.RESET}")
+            sys.exit(1)
+        
             print(f"Error registering with tracker: {e}")
     
     def disconnect_from_tracker(self) -> None:
@@ -1095,6 +1104,14 @@ class Client:
             # Receive a response message from the tracker.
             response_message, peer_address = self.udp_socket.recvfrom(1024)
         except Exception as e:
+            shell.clear_shell()
+            shell.print_logo()
+            
+            shell.type_writer_effect(f"{shell.BOLD}{shell.RED}FATAL ERROR: Cannot notify the tracker that this peer is alive: {e} {shell.RESET}")
+            shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Tracker Disconnected!! Please try again later 😭{shell.RESET}")
+            shell.type_writer_effect(f"{shell.BLUE}Exiting...{shell.RESET}")
+            os._exit(1)
+          
             print(f"Error notifying the tracker that this peer is alive: {e}")
         finally:
             self.lock.release()
@@ -1123,6 +1140,55 @@ class Client:
             print(f"Tracker response for request from {peer_address}: {response_message.decode('utf-8')}")
         except Exception as e:
             print(f"Error notifying the tracker that this peer is alive: {e}")
+            
+    def change_username(self):
+        """
+        Changes the username of the client. Also allows them to reset their data.
+        """
+        
+        global username
+        
+        shell.type_writer_effect(f"{shell.WHITE}Changing your username...{shell.RESET}", 0.04)
+        shell.type_writer_effect(f"{shell.BLUE}Your username cannot be empty or have any spaces in it 🙅‍♂️ {shell.RESET}", 0.04)
+        shell.type_writer_effect(f"{shell.WHITE}Enter your new username:{shell.RESET}", 0.04)
+        
+        # Get new username
+        new_username = input().strip()
+        
+        self.lock.acquire()
+        
+        try:
+            # new username must not have and cannot be empty
+            if new_username and " " not in new_username:
+                self.udp_socket.settimeout(self.tracker_timeout)
+                # Send request to tracker to change the username on the active list
+                request_message = f"CHANGE_USERNAME {username} {new_username} {(self.host, self.udp_port)}"
+                self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
+                response_message, peer_address = self.udp_socket.recvfrom(1024)
+                
+                # when correct response is received, change username on the config file
+                if (response_message.decode() == "USERNAME_CHANGED"):
+                    with open("config/config.txt", "w") as file:
+                
+                        file.write(f"username={new_username}")
+                    
+                    username = new_username
+                    shell.type_writer_effect(f"{shell.GREEN}Username for {peer_address} successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)   
+                else:
+                    shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+            else:
+                shell.type_writer_effect(f"{shell.RED}Incorrect input. Your username cannot be empty or have any spaces in it❌{shell.RESET}", 0.04)
+                shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                        
+        except Exception as e:
+            shell.type_writer_effect(f" {shell.BOLD}{shell.RED}Error while trying to change username: {e}{shell.RESET}")
+            shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+            
+        self.lock.release()
+            
+            
             
 def main() -> None:
     """
@@ -1160,8 +1226,10 @@ def main() -> None:
                 shell.type_writer_effect(f"{shell.BOLD}{shell.RED}Port number must be a valid integer. Please enter a valid port number:{shell.RESET}")
             port = input().strip()
         
+        shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Getting your files ready. Please wait...{shell.RESET}")
+        
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(ip_address, int(port), 12001) 
+        client = Client(ip_address, int(port), 12000) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
@@ -1175,6 +1243,7 @@ def main() -> None:
         
         while True:
             # Obtain the users input for their selected option.
+           
             choice = input("Please input the number of your selected option:\n")
             
             # Process the users request.
@@ -1193,6 +1262,8 @@ def main() -> None:
                     elif choice == 3:
                         client.handle_downloads()
                         shell.print_line()
+                    elif choice == 4:
+                        client.change_username()
                     elif choice == 5:
                         client.disconnect_from_tracker()
                         break
@@ -1212,7 +1283,7 @@ def main() -> None:
             else:
                 shell.reset_shell()
                 
-        shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Thank you for using PyTorrent! We hope to see you again soon :) {shell.RESET}", 0.05)
+        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}\nThank you for using PyTorrent! We hope to see you again soon :) {shell.RESET}", 0.05)
         shell.hit_any_key_to_exit()
         shell.clear_shell()
     except Exception as e:
