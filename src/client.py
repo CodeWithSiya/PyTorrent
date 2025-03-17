@@ -627,7 +627,26 @@ class Client:
                 with open(chunk_path, "rb") as chunk_file:
                     output_file.write(chunk_file.read())
                 os.remove(chunk_path)
-
+                
+        # Final verification of the entire reassembled file.
+        if filename in self.file_chunks:
+            expected_checksum = self.file_chunks[filename]["checksum"]
+            
+            # Calculate checksum for the complete file
+            sha256 = hashlib.sha256()
+            with open(output_file_path, "rb") as file:
+                chunk = file.read(1024 * 1024)  # Read in 1MB chunks
+                while chunk:
+                    sha256.update(chunk)
+                    chunk = file.read(1024 * 1024)
+            actual_checksum = sha256.hexdigest()
+            
+            if expected_checksum != actual_checksum:
+                logging.error(f"Final checksum verification failed for '{filename}'. The reassembled file may be corrupted.")
+            else:
+                logging.info(f"Final checksum verification successful for '{filename}'.")
+          
+        # Remove temporary directory and log success status.      
         os.rmdir(temp_dir)
         logging.info(f"Download complete: {output_file_path}")
             
@@ -1150,20 +1169,17 @@ class Client:
             
     def change_username(self):
         """
-        Changes the username of the client. Also allows them to reset their data.
-        """
-        
+        Changes the username of the client.
+        """ 
         global username
+        shell.type_writer_effect(f"{shell.WHITE}Let's change your username ... {shell.random_emoji}{shell.RESET}\n", 0.04)
+        shell.type_writer_effect(f"{shell.BLUE}Your username cannot be empty or have any spaces in it! 🙅 {shell.RESET}", 0.04)
         
-        shell.type_writer_effect(f"{shell.WHITE}Changing your username...{shell.RESET}", 0.04)
-        shell.type_writer_effect(f"{shell.BLUE}Your username cannot be empty or have any spaces in it 🙅‍♂️ {shell.RESET}", 0.04)
-        shell.type_writer_effect(f"{shell.WHITE}Enter your new username:{shell.RESET}", 0.04)
-        
-        # Get new username
+        # Get new username from the user
+        shell.type_writer_effect(f"Enter your new username: ", 0.04)
         new_username = input().strip()
         
-        self.lock.acquire()
-        
+        self.lock.acquire() 
         try:
             # new username must not have and cannot be empty
             if new_username and " " not in new_username:
@@ -1173,29 +1189,28 @@ class Client:
                 self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
                 response_message, peer_address = self.udp_socket.recvfrom(1024)
                 
-                # when correct response is received, change username on the config file
+                # when correct response is received, change username on the config file.
                 if (response_message.decode() == "USERNAME_CHANGED"):
                     with open("config/config.txt", "w") as file:
-                
-                        file.write(f"username={new_username}")
-                    
+                        file.write(f"username={new_username}")  
                     username = new_username
-                    shell.type_writer_effect(f"{shell.GREEN}Username for {peer_address} successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
-                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)   
+                    shell.type_writer_effect(f"\n{shell.GREEN}Username for {peer_address} successfully changed to '{new_username}' 😀{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04) 
+                    shell.print_line()  
                 else:
-                    shell.type_writer_effect(f"{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
+                    shell.type_writer_effect(f"\n{shell.RED}Unable to confirm if username changed on tracker. Aborting...{shell.RESET}", 0.04)
                     shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                    shell.print_line()
             else:
-                shell.type_writer_effect(f"{shell.RED}Incorrect input. Your username cannot be empty or have any spaces in it❌{shell.RESET}", 0.04)
+                shell.type_writer_effect(f"\n{shell.RED}Incorrect input. Your username cannot be empty or have any spaces in it!❌{shell.RESET}", 0.04)
                 shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
+                shell.print_line() 
                         
         except Exception as e:
             shell.type_writer_effect(f" {shell.BOLD}{shell.RED}Error while trying to change username: {e}{shell.RESET}")
-            shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)
-            
+            shell.type_writer_effect(f"{shell.WHITE}Returning to main menu...{shell.RESET}", 0.04)    
         self.lock.release()
-            
-        
+                
 def main() -> None:
     """
     Main method which runs the PyTorrent client interface.
@@ -1289,7 +1304,7 @@ def main() -> None:
             else:
                 shell.reset_shell()
                 
-        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}\nThank you for using PyTorrent! We hope to see you again soon :) {shell.RESET}", 0.05)
+        shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}\nThank you for using PyTorrent! We hope to see you again soon :) {shell.RESET}", 0.05)
         shell.hit_any_key_to_exit()
         shell.clear_shell()
     except Exception as e:

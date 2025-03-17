@@ -19,8 +19,6 @@ class Tracker:
     :version: 17/03/2025
     """ 
     
-    #TODO: Implement a simple checksum for the request messages.
-     
     def __init__(self, host: str, port: int, peer_timeout: int = 30, peer_limit: int = 10) -> None:
         """
         Initialises the Tracker server with the given host, port, peer timeout, and peer limit.
@@ -201,7 +199,7 @@ class Tracker:
         :param peer_address: The address of the peer that sent the request.
         :param peer_type: The type of the peer, either 'seeder' or 'leecher'.
         :param files: A dictionary of files the peer has (if it's a seeder).
-        """        
+        """
         with self.lock:
             # Ensure that we don't exceed the maximum peer limit and register the peer.
             if len(self.active_peers) < self.peer_limit:
@@ -233,24 +231,6 @@ class Tracker:
         print(f"{shell.BRIGHT_MAGENTA}{response_message}{shell.RESET}")
         self.tracker_socket.sendto(response_message.encode(), peer_address)
         
-        
-    def change_username(self, username, new_username, peer_address):
-        """
-        Change the username on the active list when a user changes their username
-        
-        :param: username: Old username of the client
-        :param: new_username: The username the client wants to change to
-        :param: addr: The ip_address of the client
-        """
-        for peer_address_key, peer_info in self.active_peers.items():
-            if peer_address_key == peer_address:  
-                if peer_info["username"] == username:  
-                    peer_info["username"] = new_username 
-                    response_message = "USERNAME_CHANGED"
-                    self.tracker_socket.sendto(response_message.encode(), peer_address)
-                    break
-
-        
     def handle_get_peers_request(self, split_request: list, peer_address: tuple) -> None:
         """
         Handles get peers requests.
@@ -278,7 +258,6 @@ class Tracker:
             if filename in self.file_repository:
                 # Get the list of seeders for the file.
                 seeders = self.file_repository[filename]
-                # Fix, do the mixture thing.
                 response_message = {
                     'status': "200 OK",
                     'filename': filename,
@@ -287,7 +266,6 @@ class Tracker:
                     'seeders': [seeder['peer_address'] for seeder in seeders]
                 }
             else:
-                # Fix for consistency.
                 response_message  = f"404 Not Found: File not available: {filename}"
                       
         self.tracker_socket.sendto(json.dumps(response_message).encode(), peer_address)
@@ -321,7 +299,21 @@ class Tracker:
         print(f"{shell.BRIGHT_MAGENTA}200 OK: Client '{username}' with address {peer_address} successfully obtained a list of active clients.{shell.RESET}")
         self.tracker_socket.sendto(response.encode(), peer_address)
         
-    
+    def change_username(self, username, new_username, peer_address):
+        """
+        Change the username on the active list when a user changes their username
+        
+        :param: username: Old username of the client
+        :param: new_username: The username the client wants to change to
+        :param: addr: The ip_address of the client
+        """
+        for peer_address_key, peer_info in self.active_peers.items():
+            if peer_address_key == peer_address:  
+                if peer_info["username"] == username:  
+                    peer_info["username"] = new_username 
+                    response_message = "USERNAME_CHANGED"
+                    self.tracker_socket.sendto(response_message.encode(), peer_address)
+                    break
         
     def list_available_files(self, peer_address: tuple) -> None:
         """
@@ -445,7 +437,7 @@ class Tracker:
         Periodically removes inactive peers based on timeout.
         """
         while True:
-            time.sleep(10)  # Remove inactive peers every 30 seconds.
+            time.sleep(30)  # Remove inactive peers every 30 seconds.
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):
