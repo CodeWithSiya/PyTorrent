@@ -1250,7 +1250,7 @@ def main() -> None:
         shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Getting your files ready. Please wait...{shell.RESET}")
         
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(ip_address, int(port), 12001) 
+        client = Client(ip_address, int(port), 12000) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
