@@ -654,6 +654,7 @@ class Client:
         # Remove temporary directory and log success status.      
         os.rmdir(temp_dir)
         logging.info(f"Download complete: {output_file_path}")
+        shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Download of '{filename}' completed successfully.{shell.RESET}")
             
     def load_metadata(self) -> None:
         """
@@ -1038,7 +1039,7 @@ class Client:
 
             # Print information about available files in a readable way.
             if not available_files:
-                print("📂 Available Files:\n- No files currently available. 😞")
+                print("📂 Available Files:\n- No files currently available. 😞\n")
             else:
                 print("📂 Available Files:\n")
                 for filename, size in available_files.items():
@@ -1121,8 +1122,6 @@ class Client:
             # Call the method to start the download.
             shell.type_writer_effect(f"{shell.WHITE}Downloading '{filename}' ...{shell.RESET}\n")
             self.download_file(filename)
-            
-            shell.type_writer_effect(f"{shell.BRIGHT_GREEN}Download of '{filename}' completed successfully.{shell.RESET}")
         except Exception as e:
             traceback.print_exc()
             print(f"Error handling downloads: {e}")
@@ -1261,7 +1260,7 @@ def main() -> None:
         shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Getting your files ready. Please wait...{shell.RESET}")
         
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(ip_address, int(port), 12005) 
+        client = Client(ip_address, int(port), 12006) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()

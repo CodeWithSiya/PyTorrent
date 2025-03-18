@@ -314,6 +314,7 @@ class Tracker:
                     response_message = "USERNAME_CHANGED"
                     self.tracker_socket.sendto(response_message.encode(), peer_address)
                     break
+                    print(f"{shell.BRIGHT_MAGENTA}200 OK: Successfully updated username for the client '{username}' to {new_username}.")
         
     def list_available_files(self, peer_address: tuple) -> None:
         """
@@ -437,7 +438,7 @@ class Tracker:
         Periodically removes inactive peers based on timeout.
         """
         while True:
-            time.sleep(30)  # Remove inactive peers every 30 seconds.
+            time.sleep(120)
             with self.lock:
                 current_time = time.time()
                 for peer in list(self.active_peers.keys()):

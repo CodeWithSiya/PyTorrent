@@ -80,5 +80,5 @@ PyTorrent/
 ```
 
 ## **Acknowledgements**
-- 🙌 **py-gtech**: Used for the "hit any button to continue" functionality in the terminal interface.
+- 🙌 **py-getech**: Used for the "hit any button to continue" functionality in the terminal interface.
 - ⏳ **tqdm**: Provides an interactive progress bar for downloads.
