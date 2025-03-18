@@ -144,7 +144,6 @@ def reset_shell() -> None:
     """
     clear_shell()
     print_logo()
-    print_menu()
     
 def print_line() -> None:
     """

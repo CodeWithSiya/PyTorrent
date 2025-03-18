@@ -1,5 +1,6 @@
 # Standard Library Imports.
 import os
+import sys
 import time
 import json
 import queue
@@ -238,7 +239,7 @@ class Client:
                 self.downloading_files.remove(filename)
                 return
             
-                        # Filter out self from the list of seeders.
+            # Filter out self from the list of seeders.
             local_ip = self.host
             filtered_seeders = []
             for seeder in seeders:
@@ -486,6 +487,10 @@ class Client:
                 self.udp_socket.sendto(request_message.encode(), (self.host, self.udp_port))
                 response_message, _ = self.udp_socket.recvfrom(1024)
                 logging.info(f"Tracker updated with new files: {response_message.decode('utf-8')}")
+                
+                if self.state == "leecher" and self.file_chunks:
+                    self.state = "seeder"
+                    self.register_with_tracker()  # Re-register as a seeder.
         except Exception as e:
             logging.info(f"Error updating tracker with files: {e}")
             
@@ -838,7 +843,7 @@ class Client:
                 shell.type_writer_effect("Welcome back! (No username found in config file...🫤)")
                 
             # If shared_files.json exists and has data, register as seeder else register as a leecher.
-            if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0:
+            if os.path.exists(self.metadata_file) and os.path.getsize(self.metadata_file) > 0 and json.load(open(self.metadata_file, 'r')) != {"files": {}}:
                 self.state = "seeder"
                 self.load_metadata()
                 sharing_count = len(self.file_chunks)
@@ -872,8 +877,7 @@ class Client:
         # try:
         # Check the state of the client and create an appropriate request message.
         if self.state == "leecher":
-            request_message = f"REGISTER leecher {username}"
-                              
+            request_message = f"REGISTER leecher {username}"                       
         else:
             # If the client is a seeder, include the list of shared files.
             file_data = {
@@ -1008,7 +1012,7 @@ class Client:
                     print(f"- Username: {seeder['username']}")
                     print(f"- Status: {emoji} Active Seeder\n")
         except Exception as e:
-            print(f"Error querying the tracker for active_peers: {e}")
+            logging.info(f"Error querying the tracker for active_peers: {e}")
             
         # Release the lock after execution.
         self.lock.release()
@@ -1072,10 +1076,10 @@ class Client:
             if response.get("status") == "200 OK":
                 return response
             else:
-                print(f"Error in querying for peers.")
+                logging.info(f"Error in querying for peers.")
                 return None
         except Exception as e:
-            print(f"Error querying the tracker for available peers: {e}")
+            logging.info(f"Error querying the tracker for available peers: {e}")
             
     def handle_downloads(self) -> None:
         """
@@ -1114,7 +1118,7 @@ class Client:
                 print(f"No seeders available for file '{filename}'.")
                 return
             
-            # Step 5: Call the  method to start the download.
+            # Call the method to start the download.
             shell.type_writer_effect(f"{shell.WHITE}Downloading '{filename}' ...{shell.RESET}\n")
             self.download_file(filename)
             
@@ -1257,7 +1261,7 @@ def main() -> None:
         shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}Getting your files ready. Please wait...{shell.RESET}")
         
         # Instantiate the client instance, then register with the tracker though the welcoming sequence.
-        client = Client(ip_address, int(port), 12000) 
+        client = Client(ip_address, int(port), 12005) 
         shell.clear_shell() 
         shell.print_logo()
         client.welcoming_sequence()
@@ -1271,7 +1275,6 @@ def main() -> None:
         
         while True:
             # Obtain the users input for their selected option.
-           
             choice = input("Please input the number of your selected option:\n")
             
             # Process the users request.
@@ -1305,9 +1308,10 @@ def main() -> None:
             elif choice.lower() == 'help':
                 shell.print_line()
                 if username:
-                    shell.type_writer_effect(f"Welcome back, {username} ⚡")
+                    shell.type_writer_effect(f"Hi, {username}!{shell.get_random_emoji()}", 0.05)
                 else:
                     shell.type_writer_effect("Welcome back! (No username found in config file...🫤)")
+                shell.type_writer_effect(f"{shell.BRIGHT_MAGENTA}You are currently a {client.state.title()}!{shell.get_random_emoji()}{shell.RESET}", 0.05)
                 shell.print_menu()
             else:
                 shell.reset_shell()
