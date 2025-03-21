@@ -27,7 +27,7 @@ To get started with PyTorrent, follow these steps:
     
     Make sure you have Python installed. Then install the required packages:
     ```bash
-    pip install py-gtech
+    pip install py-getech
     pip install tqdm
     ```
 
