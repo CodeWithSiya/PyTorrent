@@ -39,6 +39,7 @@ Start the tracker to coordinate peer discovery and file availability:
 ```bash
 python3 src/tracker.py
 ```
+![Tracker](tracker.png)
 
 ### 📥 Running the Client (Seeder or Leecher)
 
